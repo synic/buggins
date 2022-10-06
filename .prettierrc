@@ -1,0 +1,11 @@
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "importOrder": [
+    "^@nestjs/(.*)$",
+    "^([\\w@](?!defiq)|\\w+)(.*)$",
+    "^@defiq/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSeparation": true
+}
