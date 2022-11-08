@@ -2,7 +2,7 @@ import { Client, GuildMember } from 'discord.js';
 
 export default (client: Client): void => {
   client.on('guildMemberAdd', async (member: GuildMember) => {
-    console.log(`${member.nickname} has joined`);
+    console.log(`${member.displayName} has joined`);
 
     const role = member.guild.roles.cache.find(
       (r) => r.name.toLowerCase() === 'photographers',
