@@ -5,7 +5,6 @@ import {
   Events,
   User,
   TextChannel,
-  parseEmoji,
 } from 'discord.js';
 
 const getChannels = (message: Message) => {
@@ -24,8 +23,16 @@ export default (client: Client): void => {
 
     if (message.channelId === galleryChannel?.id && !message.author.bot) {
       if (message.attachments.size === 1) {
-        await message.react(parseEmoji(':upvote:'));
-        await message.react(parseEmoji(':downvote:'));
+        const upvote = client.emojis.cache.find((e) => {
+          console.log(e);
+          console.log(e.name);
+          return e.name === 'upvote';
+        });
+        const downvote = message.guild?.emojis.cache.find(
+          (e) => e.name === 'downvote',
+        );
+        if (upvote) message.react(upvote);
+        if (downvote) message.react(downvote);
         await message.react('💬');
       } else {
         await message.delete();
