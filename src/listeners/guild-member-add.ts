@@ -1,7 +1,7 @@
-import { Client, GuildMember } from 'discord.js';
+import { Client, Events, GuildMember } from 'discord.js';
 
 export default (client: Client): void => {
-  client.on('guildMemberAdd', async (member: GuildMember) => {
+  client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     console.log(`${member.displayName} has joined`);
 
     const role = member.guild.roles.cache.find(

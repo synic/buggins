@@ -6,7 +6,7 @@
   "author": "Adam Olsen <arolsen@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "start": "ts-node -r ./environment/setup.js src/index.ts",
+    "start": "ts-node -r ./environment/setup.js src/main.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
   },
   "dependencies": {
