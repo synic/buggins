@@ -106,6 +106,9 @@ export class INaturalistService implements OnModuleInit {
       (o) => !seenObservationIds.includes(o.id),
     );
 
+    this.logger.log(`Seen observation count is ${seenObservationIds.length}`);
+    this.logger.log(`Unseen observation count is ${unseen.length}`);
+
     const userObservationMap = new Map<number, Observation[]>();
 
     for (const observation of unseen) {
@@ -114,14 +117,22 @@ export class INaturalistService implements OnModuleInit {
       );
       if (userObservations == null) {
         userObservations = [];
-        userObservationMap.set(observation.user_id, []);
+        userObservationMap.set(observation.user_id, userObservations);
       }
 
       userObservations.push(observation);
     }
 
-    const arrays = shuffleArray(Array.from(userObservationMap.values()));
-    return shuffleArray(arrays[0])[0];
+    const user = shuffleArray(Array.from(userObservationMap.keys()))[0];
+    const userArray = userObservationMap.get(user);
+    if (userArray == null) {
+      this.logger.warn(`User array was null`);
+      return;
+    }
+
+    this.logger.log(`User is ${user}, items for user is ${userArray.length}`);
+
+    return shuffleArray(userArray)[0];
   }
 
   async fetch(): Promise<void> {
