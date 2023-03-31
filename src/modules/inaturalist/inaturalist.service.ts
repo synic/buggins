@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { CronJob } from 'cron';
 import { EmbedBuilder, TextChannel } from 'discord.js';
 import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
@@ -9,7 +11,6 @@ import { FetchCommunicationError } from '@ao/common/types';
 import { httpRequest, shuffleArray } from '@ao/common/utils';
 import { SeenObservation } from './seen-observation.entity';
 import inaturalistConfig from './inaturalist.config';
-import { schedule } from 'node-cron';
 import { DiscordService } from '@ao/discord/discord.service';
 
 @Injectable()
@@ -22,10 +23,14 @@ export class INaturalistService implements OnModuleInit {
     private readonly config: ConfigType<typeof inaturalistConfig>,
     @InjectRepository(SeenObservation)
     private readonly seenObservationsRepository: Repository<SeenObservation>,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
 
   onModuleInit() {
-    schedule(this.config.cronPattern, () => this.fetch());
+    const job = new CronJob(this.config.cronPattern, () => this.fetch());
+    this.schedulerRegistry.addCronJob('inaturalist-fetch', job);
+    job.start();
+
     this.logger.log(
       `Set up iNaturalist fetch cronjob with pattern: ${this.config.cronPattern}`,
     );
@@ -36,7 +41,7 @@ export class INaturalistService implements OnModuleInit {
   > {
     const response = await httpRequest<Observation[]>({
       server: 'https://inaturalist.org',
-      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc`,
+      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc&per_page=50`,
     });
 
     if (!response.ok) return response;
@@ -44,17 +49,8 @@ export class INaturalistService implements OnModuleInit {
     return Ok(response.val);
   }
 
-  private async haveSeenObservation(o: Observation): Promise<boolean> {
-    const seenObservation = await this.seenObservationsRepository.findOneBy({
-      observationId: o.id.toString(),
-    });
-    return seenObservation != null;
-  }
-
   private async markObservationAsSeen(o: Observation): Promise<void> {
-    await this.seenObservationsRepository.save({
-      observationId: o.id.toString(),
-    });
+    await this.seenObservationsRepository.save({ observationId: o.id });
   }
 
   private async showObservation(o: Observation): Promise<void> {
@@ -91,33 +87,61 @@ export class INaturalistService implements OnModuleInit {
     embed.setImage(photoUrl);
 
     await channel?.send({ embeds: [embed] });
+    await this.markObservationAsSeen(o);
 
     return;
+  }
+
+  async getRandomObservation(
+    observations: Observation[],
+  ): Promise<Observation | null> {
+    const observationIds = observations.map((o) => o.id);
+    const seenObservationIds = (
+      await this.seenObservationsRepository.findBy({
+        observationId: In(observationIds),
+      })
+    ).map((o) => o.observationId);
+
+    const unseen = observations.filter(
+      (o) => !seenObservationIds.includes(o.id),
+    );
+
+    const userObservationMap = new Map<number, Observation[]>();
+
+    for (const observation of unseen) {
+      let userObservations: Observation[] | null = userObservationMap.get(
+        observation.user_id,
+      );
+      if (userObservations == null) {
+        userObservations = [];
+        userObservationMap.set(observation.user_id, []);
+      }
+
+      userObservations.push(observation);
+    }
+
+    const arrays = shuffleArray(Array.from(userObservationMap.values()));
+    return shuffleArray(arrays[0])[0];
   }
 
   async fetch(): Promise<void> {
     const observationsResponse = await this.fetchRecentProjectObservations();
 
     if (!observationsResponse.ok) {
-      throw observationsResponse.val;
+      this.logger.error(
+        `Error fetching observations: ${observationsResponse.val}`,
+      );
+      return;
     }
 
-    const shuffled = shuffleArray<Observation>(observationsResponse.val);
+    const observation = await this.getRandomObservation(
+      observationsResponse.val,
+    );
 
-    while (shuffled.length > 0) {
-      const observation = shuffled.pop();
-
-      if (observation?.photos.length) {
-        if (!(await this.haveSeenObservation(observation))) {
-          await this.showObservation(observation);
-          await this.markObservationAsSeen(observation);
-          break;
-        } else {
-          this.logger.log(`Observation already seen: ${observation.id}`);
-        }
-      }
+    if (!observation) {
+      this.logger.log(`No unseen observations to display at this time.`);
+      return;
     }
-
-    return;
+    await this.showObservation(observation);
   }
 }

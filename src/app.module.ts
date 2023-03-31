@@ -4,10 +4,18 @@ import { DatabasesModule } from './databases/databases.module';
 import { DiscordModule } from './discord/discord.module';
 import { PhotoFeedbackModule } from './modules/photo-feedback/photo-feedback.module';
 import { INaturalistModule } from './modules/inaturalist/inaturalist.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 const enabledModules = [INaturalistModule, PhotoFeedbackModule];
 
 @Module({
-  imports: [ConsoleModule, DatabasesModule, DiscordModule, ...enabledModules],
+  imports: [
+    ConsoleModule,
+    DatabasesModule,
+    DiscordModule,
+    ScheduleModule.forRoot(),
+
+    ...enabledModules,
+  ],
 })
 export class AppModule {}
