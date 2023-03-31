@@ -26,16 +26,14 @@ export class INaturalistModule extends DiscordModule {
   private async fetchRecentProbjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
   > {
-    const response = await httpRequest<{ results: Observation[] }>({
-      server: 'https://api.inaturalist.org',
-      path: `v1/observations?project_id=${
-        process.env.PROJECT_ID ?? ''
-      }&ttl=900&v=1680225091000&preferred_place_id=52&locale=en&return_bounds=true&per_page=50`,
+    const response = await httpRequest<Observation[]>({
+      server: 'https://inaturalist.org',
+      path: `observations/project/${process.env.PROJECT_ID ?? ''}.json`,
     });
 
     if (!response.ok) return response;
 
-    return Ok(response.val.results);
+    return Ok(response.val);
   }
 
   private async haveSeenObservation(o: Observation): Promise<boolean> {
@@ -63,7 +61,7 @@ export class INaturalistModule extends DiscordModule {
     if (!interaction.guild) throw 'Interaction did not have a guild.';
     const channel = this.getChannel(interaction.guild);
     console.log(channel);
-    const photoUrl = o.photos[0].url.replace('square', 'large');
+    const photoUrl = o.photos[0].large_url;
     const image = new EmbedBuilder({ image: { url: photoUrl } });
     await channel?.send({
       content: 'test',
