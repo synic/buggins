@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Client, EmbedBuilder, TextBasedChannel } from 'discord.js';
+import { EmbedBuilder, TextBasedChannel } from 'discord.js';
 import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
 import { FetchCommunicationError } from '@ao/common/types';
@@ -10,7 +10,6 @@ import { httpRequest, shuffleArray } from '@ao/common/utils';
 import { SeenObservation } from './seen-observation.entity';
 import inaturalistConfig from './inaturalist.config';
 import { schedule } from 'node-cron';
-import { InjectDiscordClient } from '@discord-nestjs/core';
 import { DiscordService } from '@ao/discord/discord.service';
 
 @Injectable()
@@ -19,7 +18,6 @@ export class INaturalistService implements OnModuleInit {
 
   constructor(
     private readonly discordService: DiscordService,
-    @InjectDiscordClient() private readonly client: Client,
     @Inject(inaturalistConfig.KEY)
     private readonly config: ConfigType<typeof inaturalistConfig>,
     @InjectRepository(SeenObservation)
