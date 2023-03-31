@@ -6,4 +6,5 @@ export type Observation = {
   photos: {
     large_url: string;
   }[];
+  species_guess?: string;
 };

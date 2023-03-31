@@ -1,39 +1,46 @@
-import { DiscordModule } from '@ao/types';
+import { Injectable } from '@nestjs/common';
 import {
-  Client,
   MessageReaction,
   Message,
   Events,
   User,
   TextChannel,
 } from 'discord.js';
+import { OnModuleInit } from '@nestjs/common';
+import { DiscordService } from '@ao/discord/discord.service';
 
-export class GalleryModule extends DiscordModule {
-  constructor(client: Client) {
-    super(client);
+@Injectable()
+export class GalleryService implements OnModuleInit {
+  constructor(private readonly discordService: DiscordService) {}
 
-    client.on(Events.MessageCreate, async (message: Message) => {
-      const [galleryChannel, _] = this.getChannels(message);
+  async onModuleInit() {
+    this.discordService.client.on(
+      Events.MessageCreate,
+      async (message: Message) => {
+        const [galleryChannel, _] = this.getChannels(message);
 
-      if (message.channelId === galleryChannel?.id && !message.author.bot) {
-        if (message.attachments.size === 1) {
-          await message.react('👍');
-          await message.react('👎');
-          await message.react('💬');
-        } else {
-          await message.delete();
+        if (message.channelId === galleryChannel?.id && !message.author.bot) {
+          if (message.attachments.size === 1) {
+            await message.react('👍');
+            await message.react('👎');
+            await message.react('💬');
+          } else {
+            await message.delete();
+          }
         }
-      }
-    });
+      },
+    );
 
-    client.on(
+    this.discordService.client.on(
       Events.MessageReactionAdd,
       async (reaction: MessageReaction, user: User) => {
         const message = reaction.message.partial
           ? await reaction.message.fetch()
           : reaction.message;
 
-        const [galleryChannel, feedbackChannel] = this.getChannels(message);
+        const [galleryChannel, feedbackChannel] = this.getChannels(
+          message as Message,
+        );
 
         const attachment = reaction.message.attachments.first();
         if (

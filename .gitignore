@@ -52,3 +52,4 @@ mine/*
 
 # local storage
 /data
+sqlite.db

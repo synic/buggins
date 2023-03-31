@@ -1,10 +1,6 @@
 {
   "singleQuote": true,
   "trailingComma": "all",
-  "importOrder": [
-    "^discord.js$",
-    "^@ao/(.*)$",
-    "^[./]"
-  ],
+  "importOrder": ["^@nestjs/(.*)$", "^discord.js$", "^@ao/(.*)$", "^[./]"],
   "importOrderSeparation": true
 }
