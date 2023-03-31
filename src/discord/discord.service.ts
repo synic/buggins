@@ -1,6 +1,8 @@
 import { Inject, Logger, OnModuleInit } from '@nestjs/common';
+import { Command, ConsoleIO } from '@squareboat/nest-console';
 import { ConfigType } from '@nestjs/config';
 import { Injectable } from '@nestjs/common';
+import { REST, Routes } from 'discord.js';
 import {
   Client,
   Events,
@@ -8,6 +10,7 @@ import {
   Guild,
   Interaction,
   Partials,
+  PermissionsBitField,
   SlashCommandBuilder,
 } from 'discord.js';
 import discordConfig from './discord.config';
@@ -16,7 +19,7 @@ import { CommandData } from './types';
 @Injectable()
 export class DiscordService implements OnModuleInit {
   private logger = new Logger(DiscordService.name);
-  protected readonly commands = new Map<string, CommandData>();
+  readonly #commands = new Map<string, CommandData>();
 
   readonly client = new Client({
     intents: [
@@ -51,13 +54,32 @@ export class DiscordService implements OnModuleInit {
     return this.#guild;
   }
 
+  get commands(): Map<string, CommandData> {
+    return this.#commands;
+  }
+
   private setupCommandListener() {
     this.client.on(
       Events.InteractionCreate,
       async (interaction: Interaction) => {
         if (!interaction.isChatInputCommand()) return;
 
-        const command = this.commands.get(interaction.commandName);
+        const command = this.#commands.get(interaction.commandName);
+
+        const permissions =
+          typeof interaction.member.permissions === 'string'
+            ? { has: () => false }
+            : interaction.member.permissions;
+        if (
+          command.requireMod &&
+          !permissions.has(PermissionsBitField.Flags.Administrator)
+        ) {
+          await interaction.reply({
+            content: 'You do not have permission to use this command.',
+            ephemeral: true,
+          });
+          return;
+        }
 
         try {
           await command?.execute(interaction);
@@ -87,16 +109,40 @@ export class DiscordService implements OnModuleInit {
     description,
     execute,
     autoreply,
+    requireMod,
   }: {
     name: string;
     description: string;
     execute: (interaction: Interaction) => Promise<void>;
     autoreply?: boolean;
+    requireMod?: boolean;
   }) {
-    this.commands.set(name, {
+    this.#commands.set(name, {
       data: new SlashCommandBuilder().setName(name).setDescription(description),
       execute,
       autoreply,
+      requireMod,
     });
+  }
+
+  @Command('discord:updatecommands', { desc: 'Update discord commands' })
+  async updateCommands(cli: ConsoleIO) {
+    const rest = new REST({ version: '10' }).setToken(this.config.token);
+
+    const commands = Array.from(this.#commands.values()).map((c) =>
+      c.data.toJSON(),
+    );
+
+    cli.info(`Started refreshing ${commands.length} application (/) commands.`);
+
+    const data = (await rest.put(
+      Routes.applicationGuildCommands(
+        this.config.clientId,
+        this.config.guildId,
+      ),
+      { body: commands },
+    )) as { length: number };
+
+    cli.info(`Successfully reloaded ${data.length} application (/) commands.`);
   }
 }

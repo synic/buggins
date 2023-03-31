@@ -28,6 +28,7 @@ export class INaturalistService implements OnModuleInit {
       description: 'Load inaturalist observations',
       execute: async () => await this.fetch(),
       autoreply: true,
+      requireMod: true,
     });
   }
 

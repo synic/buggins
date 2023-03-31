@@ -14,12 +14,13 @@
     "start:prod": "node -r environment/setup.js dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
-    "typeorm:cli": "ts-node -r tsconfig-paths/register  -r ./environment/setup.js ./node_modules/typeorm/cli -d ./src/databases/default-migrations.config.ts",
-    "typeorm:plaincli": "ts-node -r tsconfig-paths/register  -r ./environment/setup.js ./node_modules/typeorm/cli",
+    "typeorm:cli": "ts-node -r tsconfig-paths/register -r ./environment/setup.js ./node_modules/typeorm/cli -d ./src/databases/default-migrations.config.ts",
+    "typeorm:plaincli": "ts-node -r tsconfig-paths/register -r ./environment/setup.js ./node_modules/typeorm/cli",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "manage": "node -r tsconfig-paths/register -r ./environment/setup.js cli"
   },
   "dependencies": {
     "@nestjs/common": "^9.0.0",
@@ -27,6 +28,7 @@
     "@nestjs/core": "^9.0.0",
     "@nestjs/platform-express": "^9.0.0",
     "@nestjs/typeorm": "^9.0.1",
+    "@squareboat/nest-console": "^1.1.1",
     "discord.js": "^14.5.0",
     "dotenv": "^16.0.3",
     "node-cron": "^3.0.2",
