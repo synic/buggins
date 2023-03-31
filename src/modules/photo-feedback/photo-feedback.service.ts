@@ -8,22 +8,22 @@ import {
 } from 'discord.js';
 import { On } from '@discord-nestjs/core';
 import { DiscordService } from '@ao/discord/discord.service';
-import galleryConfig from './gallery.config';
 import { ConfigType } from '@nestjs/config';
+import photoFeedbackConfig from './photo-feedback.config';
 
 @Injectable()
-export class GalleryService {
+export class PhotoFeedbackService {
   constructor(
-    @Inject(galleryConfig.KEY)
-    private readonly config: ConfigType<typeof galleryConfig>,
+    @Inject(photoFeedbackConfig.KEY)
+    private readonly config: ConfigType<typeof photoFeedbackConfig>,
     private readonly discordService: DiscordService,
   ) {}
 
   @On(Events.MessageCreate)
   async onMessageCreate(message: Message) {
-    const [galleryChannel, _] = this.getChannels();
+    const [postChannel, _] = this.getChannels();
 
-    if (message.channelId === galleryChannel?.id && !message.author.bot) {
+    if (message.channelId === postChannel?.id && !message.author.bot) {
       if (message.attachments.size === 1) {
         await message.react('👍');
         await message.react('👎');
@@ -36,13 +36,13 @@ export class GalleryService {
 
   @On(Events.MessageReactionAdd)
   async onMessageReactionAdd(reaction: MessageReaction, user: User) {
-    const [galleryChannel, feedbackChannel] = this.getChannels();
+    const [postChannel, feedbackChannel] = this.getChannels();
 
     const attachment = reaction.message.attachments.first();
     if (
       !user.bot &&
       reaction.emoji.name === '💬' &&
-      reaction.message.channelId === galleryChannel?.id &&
+      reaction.message.channelId === postChannel?.id &&
       reaction.message.author &&
       attachment
     ) {
