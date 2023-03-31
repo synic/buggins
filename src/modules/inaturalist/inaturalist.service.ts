@@ -27,7 +27,7 @@ export class INaturalistService implements OnModuleInit {
       name: 'loadinat',
       description: 'Load inaturalist observations',
       execute: async () => await this.fetch(),
-      autoreply: true,
+      autoReply: true,
       requireMod: true,
     });
   }
@@ -44,7 +44,7 @@ export class INaturalistService implements OnModuleInit {
   > {
     const response = await httpRequest<Observation[]>({
       server: 'https://inaturalist.org',
-      path: `observations/project/${this.config.projectId}.json`,
+      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc`,
     });
 
     if (!response.ok) return response;

@@ -14,7 +14,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import discordConfig from './discord.config';
-import { CommandData } from './types';
+import { AddCommandOptions, CommandData } from './types';
 
 @Injectable()
 export class DiscordService implements OnModuleInit {
@@ -83,7 +83,7 @@ export class DiscordService implements OnModuleInit {
 
         try {
           await command?.execute(interaction);
-          if (command?.autoreply) {
+          if (command?.autoReply) {
             await interaction.reply('Done!');
           }
         } catch (error) {
@@ -104,25 +104,15 @@ export class DiscordService implements OnModuleInit {
     );
   }
 
-  addCommand({
-    name,
-    description,
-    execute,
-    autoreply,
-    requireMod,
-  }: {
-    name: string;
-    description: string;
-    execute: (interaction: Interaction) => Promise<void>;
-    autoreply?: boolean;
-    requireMod?: boolean;
-  }) {
-    this.#commands.set(name, {
-      data: new SlashCommandBuilder().setName(name).setDescription(description),
-      execute,
-      autoreply,
-      requireMod,
-    });
+  addCommand(options: AddCommandOptions): CommandData {
+    const data: CommandData = {
+      data: new SlashCommandBuilder()
+        .setName(options.name)
+        .setDescription(options.description),
+      ...options,
+    };
+    this.#commands.set(options.name, data);
+    return data;
   }
 
   @Command('discord:updatecommands', { desc: 'Update discord commands' })
