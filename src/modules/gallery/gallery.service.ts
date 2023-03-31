@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseDiscordService } from '@ao/discord/types';
 import {
-  Client,
   MessageReaction,
   Message,
   Events,
@@ -9,29 +7,31 @@ import {
   TextChannel,
 } from 'discord.js';
 import { OnModuleInit } from '@nestjs/common';
+import { DiscordService } from '@ao/discord/discord.service';
 
 @Injectable()
-export class GalleryService extends BaseDiscordService implements OnModuleInit {
-  constructor(client: Client) {
-    super(client);
-  }
+export class GalleryService implements OnModuleInit {
+  constructor(private readonly discordService: DiscordService) {}
 
   async onModuleInit() {
-    this.client.on(Events.MessageCreate, async (message: Message) => {
-      const [galleryChannel, _] = this.getChannels(message);
+    this.discordService.client.on(
+      Events.MessageCreate,
+      async (message: Message) => {
+        const [galleryChannel, _] = this.getChannels(message);
 
-      if (message.channelId === galleryChannel?.id && !message.author.bot) {
-        if (message.attachments.size === 1) {
-          await message.react('👍');
-          await message.react('👎');
-          await message.react('💬');
-        } else {
-          await message.delete();
+        if (message.channelId === galleryChannel?.id && !message.author.bot) {
+          if (message.attachments.size === 1) {
+            await message.react('👍');
+            await message.react('👎');
+            await message.react('💬');
+          } else {
+            await message.delete();
+          }
         }
-      }
-    });
+      },
+    );
 
-    this.client.on(
+    this.discordService.client.on(
       Events.MessageReactionAdd,
       async (reaction: MessageReaction, user: User) => {
         const message = reaction.message.partial

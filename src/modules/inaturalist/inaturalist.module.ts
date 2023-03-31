@@ -1,3 +1,4 @@
+import { DiscordModule } from '@ao/discord/discord.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,6 +10,7 @@ import { SeenObservation } from './seen-observation.entity';
   imports: [
     ConfigModule.forFeature(inaturalistConfig),
     TypeOrmModule.forFeature([SeenObservation]),
+    DiscordModule,
   ],
   providers: [INaturalistService],
   exports: [INaturalistService],
