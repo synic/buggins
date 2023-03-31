@@ -2,15 +2,16 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EmbedBuilder, TextBasedChannel } from 'discord.js';
+import { Client, EmbedBuilder, TextBasedChannel } from 'discord.js';
 import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
 import { FetchCommunicationError } from '@ao/common/types';
 import { httpRequest, shuffleArray } from '@ao/common/utils';
 import { SeenObservation } from './seen-observation.entity';
 import inaturalistConfig from './inaturalist.config';
-import { DiscordService } from '@ao/discord/discord.service';
 import { schedule } from 'node-cron';
+import { InjectDiscordClient } from '@discord-nestjs/core';
+import { DiscordService } from '@ao/discord/discord.service';
 
 @Injectable()
 export class INaturalistService implements OnModuleInit {
@@ -18,19 +19,12 @@ export class INaturalistService implements OnModuleInit {
 
   constructor(
     private readonly discordService: DiscordService,
+    @InjectDiscordClient() private readonly client: Client,
     @Inject(inaturalistConfig.KEY)
     private readonly config: ConfigType<typeof inaturalistConfig>,
     @InjectRepository(SeenObservation)
     private readonly seenObservationsRepository: Repository<SeenObservation>,
-  ) {
-    this.discordService.addCommand({
-      name: 'loadinat',
-      description: 'Load inaturalist observations',
-      execute: async () => await this.fetch(),
-      autoReply: true,
-      requireMod: true,
-    });
-  }
+  ) {}
 
   onModuleInit() {
     schedule(this.config.cronPattern, () => this.fetch());
@@ -66,9 +60,11 @@ export class INaturalistService implements OnModuleInit {
   }
 
   private getChannel(): TextBasedChannel | null {
-    return this.discordService.guild?.channels.cache.find(
-      (c) => c.name === this.config.channelName,
-    ) as TextBasedChannel;
+    return this.discordService
+      .getGuild()
+      ?.channels.cache.find(
+        (c) => c.name === this.config.channelName,
+      ) as TextBasedChannel;
   }
 
   private async showObservation(o: Observation): Promise<void> {
