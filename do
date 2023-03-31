@@ -63,7 +63,7 @@ def stop(opts):
 @dm.command()
 def db(opts):
     """Execute a database shell."""
-    dm.crun("psql -U buggons buggons", container=cont.db)
+    dm.crun("psql -U buggins buggins", container=cont.db)
 
 
 @dm.command()
