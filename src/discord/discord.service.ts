@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Once, InjectDiscordClient } from '@discord-nestjs/core';
-import { Client, Events, Guild } from 'discord.js';
+import { Channel, Client, Events, Guild } from 'discord.js';
 import discordConfig from './discord.config';
 import { ConfigType } from '@nestjs/config';
 
@@ -16,6 +16,12 @@ export class DiscordService {
 
   getGuild(): Guild | null {
     return this.client.guilds.cache.get(this.config.guildId) ?? null;
+  }
+
+  findChannelByName<T extends Channel>(name: string): T | null {
+    return this.getGuild()?.channels.cache.find(
+      (c) => c.name.toLowerCase() === name.toLowerCase(),
+    ) as T;
   }
 
   @Once(Events.ClientReady)

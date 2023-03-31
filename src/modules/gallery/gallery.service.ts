@@ -1,21 +1,27 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   MessageReaction,
   Message,
   Events,
   User,
   TextChannel,
-  Client,
 } from 'discord.js';
-import { InjectDiscordClient, On } from '@discord-nestjs/core';
+import { On } from '@discord-nestjs/core';
+import { DiscordService } from '@ao/discord/discord.service';
+import galleryConfig from './gallery.config';
+import { ConfigType } from '@nestjs/config';
 
 @Injectable()
 export class GalleryService {
-  constructor(@InjectDiscordClient() private readonly client: Client) {}
+  constructor(
+    @Inject(galleryConfig.KEY)
+    private readonly config: ConfigType<typeof galleryConfig>,
+    private readonly discordService: DiscordService,
+  ) {}
 
   @On(Events.MessageCreate)
   async onMessageCreate(message: Message) {
-    const [galleryChannel, _] = this.getChannels(message);
+    const [galleryChannel, _] = this.getChannels();
 
     if (message.channelId === galleryChannel?.id && !message.author.bot) {
       if (message.attachments.size === 1) {
@@ -30,13 +36,7 @@ export class GalleryService {
 
   @On(Events.MessageReactionAdd)
   async onMessageReactionAdd(reaction: MessageReaction, user: User) {
-    const message = reaction.message.partial
-      ? await reaction.message.fetch()
-      : reaction.message;
-
-    const [galleryChannel, feedbackChannel] = this.getChannels(
-      message as Message,
-    );
+    const [galleryChannel, feedbackChannel] = this.getChannels();
 
     const attachment = reaction.message.attachments.first();
     if (
@@ -55,13 +55,14 @@ export class GalleryService {
     }
   }
 
-  getChannels(message: Message): [TextChannel | null, TextChannel | null] {
-    const galleryChannel = message.guild?.channels.cache.find(
-      (c) => c.name === 'want-feedback',
-    );
-    const feedbackChannel = message.guild?.channels.cache.find(
-      (c) => c.name === 'photo-feedback',
-    );
-    return [galleryChannel as TextChannel, feedbackChannel as TextChannel];
+  getChannels(): [TextChannel | null, TextChannel | null] {
+    return [
+      this.discordService.findChannelByName<TextChannel>(
+        this.config.postChannelName,
+      ),
+      this.discordService.findChannelByName<TextChannel>(
+        this.config.feedbackChannelName,
+      ),
+    ];
   }
 }

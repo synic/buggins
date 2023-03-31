@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EmbedBuilder, TextBasedChannel } from 'discord.js';
+import { EmbedBuilder, TextChannel } from 'discord.js';
 import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
 import { FetchCommunicationError } from '@ao/common/types';
@@ -31,7 +31,7 @@ export class INaturalistService implements OnModuleInit {
     );
   }
 
-  private async fetchRecentProbjectObservations(): Promise<
+  private async fetchRecentProjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
   > {
     const response = await httpRequest<Observation[]>({
@@ -57,34 +57,46 @@ export class INaturalistService implements OnModuleInit {
     });
   }
 
-  private getChannel(): TextBasedChannel | null {
-    return this.discordService
-      .getGuild()
-      ?.channels.cache.find(
-        (c) => c.name === this.config.channelName,
-      ) as TextBasedChannel;
-  }
-
   private async showObservation(o: Observation): Promise<void> {
-    const channel = this.getChannel();
-    const photoUrl = o.photos[0].large_url;
-    const image = new EmbedBuilder({ image: { url: photoUrl } });
+    const channel = this.discordService.findChannelByName<TextChannel>(
+      this.config.channelName,
+    );
 
-    await channel?.send({
-      content:
-        `${o.user.login} has spotted ${
-          o.species_guess ?? 'something new'
-        } on our community project!\n` +
-        `View on iNaturalist here: https://inaturalist.org/observations/${o.id}\n` +
-        `Join our project here: https://inaturalist.org/projects/${this.config.projectId}`,
-      embeds: [image],
+    if (!channel) {
+      this.logger.error(
+        `Could not find channel named: ${this.config.channelName}`,
+      );
+      return;
+    }
+
+    const photoUrl = o.photos[0].large_url;
+    const embed = new EmbedBuilder({
+      description: `**[${o.user_login}](https://inaturalist.org/people/${o.user_id}) has spotted something new!**`,
     });
+
+    embed.addFields([
+      {
+        name: `*Species*`,
+        value: `${o.species_guess || 'unknown'}`,
+      },
+      {
+        name: 'iNaturalist Link',
+        value: `https://inaturalist.org/observations/${o.id}`,
+      },
+      {
+        name: 'iNaturalist Project',
+        value: `https://inaturalist.org/projects/${this.config.projectId}`,
+      },
+    ]);
+    embed.setImage(photoUrl);
+
+    await channel?.send({ embeds: [embed] });
 
     return;
   }
 
   async fetch(): Promise<void> {
-    const observationsResponse = await this.fetchRecentProbjectObservations();
+    const observationsResponse = await this.fetchRecentProjectObservations();
 
     if (!observationsResponse.ok) {
       throw observationsResponse.val;

@@ -1,8 +1,7 @@
 export type Observation = {
   id: number;
-  user: {
-    login: string;
-  };
+  user_id: number;
+  user_login: string;
   photos: {
     large_url: string;
   }[];
