@@ -2,9 +2,8 @@
   "singleQuote": true,
   "trailingComma": "all",
   "importOrder": [
-    "^@nestjs/(.*)$",
-    "^([\\w@](?!defiq)|\\w+)(.*)$",
-    "^@defiq/(.*)$",
+    "^discord.js$",
+    "^@ao/(.*)$",
     "^[./]"
   ],
   "importOrderSeparation": true

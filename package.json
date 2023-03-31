@@ -6,15 +6,24 @@
   "author": "Adam Olsen <arolsen@gmail.com>",
   "license": "MIT",
   "scripts": {
-    "start": "ts-node -r ./environment/setup.js src/main.ts",
+    "start": "ts-node -r tsconfig-paths/register -r ./environment/setup.js src/main.ts",
+    "update-commands": "ts-node -r tsconfig-paths/register -r ./environment/setup.js src/deploy-commands.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\""
   },
   "dependencies": {
     "discord.js": "^14.5.0",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "node-cron": "^3.0.2",
+    "node-fetch": "2",
+    "node-persist": "^3.1.3",
+    "ts-results": "^3.3.0",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^18.8.2",
+    "@types/node-cron": "^3.0.7",
+    "@types/node-fetch": "^2.6.3",
+    "@types/node-persist": "^3.1.3",
     "@typescript-eslint/eslint-plugin": "^5.39.0",
     "@typescript-eslint/parser": "^5.39.0",
     "eslint": "^8.24.0",
