@@ -1,4 +1,4 @@
-import { Client, REST, Routes } from 'discord.js';
+/**import { Client, REST, Routes } from 'discord.js';
 import { ENABLED_MODULES } from './constants';
 
 const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN ?? '');
@@ -31,3 +31,4 @@ const commands = ENABLED_MODULES.map((moduleClass) => {
     process.exit(1);
   }
 })();
+**/

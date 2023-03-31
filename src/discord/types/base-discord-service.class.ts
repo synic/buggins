@@ -1,18 +1,18 @@
-import { instance } from '@ao/storage';
+import { DISCORD_CLIENT_PROVIDER } from '../constants';
+import { Inject } from '@nestjs/common';
 import { Client, Events, Interaction, SlashCommandBuilder } from 'discord.js';
-import { LocalStorage } from 'node-persist';
-import { CommandData } from './command-data.type';
+import { CommandData } from './';
 
-export abstract class DiscordModule {
-  readonly _client: Client;
-  readonly _commands = new Map<string, CommandData>();
+export abstract class BaseDiscordService {
+  protected readonly commands = new Map<string, CommandData>();
 
-  constructor(client: Client) {
-    this._client = client;
+  constructor(
+    @Inject(DISCORD_CLIENT_PROVIDER) protected readonly client: Client,
+  ) {
     client.on(Events.InteractionCreate, async (interaction: Interaction) => {
       if (!interaction.isChatInputCommand()) return;
 
-      const command = this._commands.get(interaction.commandName);
+      const command = this.commands.get(interaction.commandName);
 
       try {
         await command?.execute(interaction);
@@ -36,16 +36,6 @@ export abstract class DiscordModule {
     });
   }
 
-  get storage(): LocalStorage {
-    return instance();
-  }
-  get client(): Client {
-    return this._client;
-  }
-  get commands(): Map<string, CommandData> {
-    return this._commands;
-  }
-
   addCommand({
     name,
     description,
@@ -57,7 +47,7 @@ export abstract class DiscordModule {
     execute: (interaction: Interaction) => Promise<void>;
     autoreply?: boolean;
   }) {
-    this._commands.set(name, {
+    this.commands.set(name, {
       data: new SlashCommandBuilder().setName(name).setDescription(description),
       execute,
       autoreply,

@@ -1,3 +1,8 @@
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { schedule } from 'node-cron';
+import { ConfigType } from '@nestjs/config';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 import {
   Client,
   EmbedBuilder,
@@ -5,13 +10,30 @@ import {
   Interaction,
   TextBasedChannel,
 } from 'discord.js';
-import { DiscordModule, Observation } from '@ao/types';
+import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
 import { FetchCommunicationError } from '@ao/common/types';
 import { httpRequest } from '@ao/common/utils';
+import { BaseDiscordService } from '@ao/discord/types';
+import { DISCORD_CLIENT_PROVIDER } from '@ao/discord/constants';
+import { SeenObservation } from './seen-observation.entity';
+import inaturalistConfig from './inaturalist.config';
 
-export class INaturalistModule extends DiscordModule {
-  constructor(client: Client) {
+@Injectable()
+export class INaturalistService
+  extends BaseDiscordService
+  implements OnModuleInit
+{
+  private readonly logger = new Logger(INaturalistService.name);
+  private guild: Guild | undefined;
+
+  constructor(
+    @Inject(DISCORD_CLIENT_PROVIDER) client: Client,
+    @Inject(inaturalistConfig.KEY)
+    private readonly config: ConfigType<typeof inaturalistConfig>,
+    @InjectRepository(SeenObservation)
+    private readonly seenObservationsRepository: Repository<SeenObservation>,
+  ) {
     super(client);
 
     this.addCommand({
@@ -23,12 +45,17 @@ export class INaturalistModule extends DiscordModule {
     });
   }
 
+  onModuleInit() {
+    this.guild = this.client.guilds.cache.find(
+    schedule('0 * * * *', async () => await this.fetch());
+  }
+
   private async fetchRecentProbjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
   > {
     const response = await httpRequest<Observation[]>({
       server: 'https://inaturalist.org',
-      path: `observations/project/${process.env.PROJECT_ID ?? ''}.json`,
+      path: `observations/project/${this.config.projectId}.json`,
     });
 
     if (!response.ok) return response;
@@ -37,43 +64,40 @@ export class INaturalistModule extends DiscordModule {
   }
 
   private async haveSeenObservation(o: Observation): Promise<boolean> {
-    if (await this.storage.getItem(`inaturalist-observation-seen-${o.id}`)) {
-      return true;
-    }
-
-    return false;
+    const seenObservation = await this.seenObservationsRepository.findOneBy({
+      observationId: o.id.toString(),
+    });
+    return seenObservation != null;
   }
 
   private async markObservationAsSeen(o: Observation): Promise<void> {
-    await this.storage.setItem(`inaturalist-observation-seen-${o.id}`, 'true');
+    await this.seenObservationsRepository.save({
+      observationId: o.id.toString(),
+    });
   }
 
   private getChannel(guild: Guild): TextBasedChannel | null {
     return guild.channels.cache.find(
-      (c) => c.name === (process.env.INATURALIST_CHANNEL ?? 'inaturalist'),
+      (c) => c.name === this.config.channelName,
     ) as TextBasedChannel;
   }
 
-  private async showObservation(
-    interaction: Interaction,
-    o: Observation,
-  ): Promise<void> {
-    if (!interaction.guild) throw 'Interaction did not have a guild.';
+  private async showObservation(o: Observation): Promise<void> {
     const channel = this.getChannel(interaction.guild);
-    console.log(channel);
     const photoUrl = o.photos[0].large_url;
     const image = new EmbedBuilder({ image: { url: photoUrl } });
     await channel?.send({
-      content: 'test',
+      content: `${o.user.login} has spotted ${
+        o.species_guess ?? 'something new'
+      }!: https://inaturalist.org/observations/${o.id}`,
       embeds: [image],
     });
 
     return;
   }
 
-  async fetch(interaction: Interaction): Promise<void> {
+  async fetch(): Promise<void> {
     const observationsResponse = await this.fetchRecentProbjectObservations();
-    if (!interaction.channel) throw 'Did not come from a channel';
 
     if (!observationsResponse.ok) {
       throw observationsResponse.val;
@@ -89,11 +113,11 @@ export class INaturalistModule extends DiscordModule {
 
       if (observation?.photos.length) {
         if (!(await this.haveSeenObservation(observation))) {
-          await this.showObservation(interaction, observation);
+          await this.showObservation(observation);
           await this.markObservationAsSeen(observation);
           break;
         } else {
-          console.log('Observation already seen');
+          this.logger.log(`Observation already seen: ${observation.id}`);
         }
       }
     }

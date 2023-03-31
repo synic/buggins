@@ -1,4 +1,5 @@
-import { DiscordModule } from '@ao/types';
+import { Injectable } from '@nestjs/common';
+import { BaseDiscordService } from '@ao/discord/types';
 import {
   Client,
   MessageReaction,
@@ -7,12 +8,16 @@ import {
   User,
   TextChannel,
 } from 'discord.js';
+import { OnModuleInit } from '@nestjs/common';
 
-export class GalleryModule extends DiscordModule {
+@Injectable()
+export class GalleryService extends BaseDiscordService implements OnModuleInit {
   constructor(client: Client) {
     super(client);
+  }
 
-    client.on(Events.MessageCreate, async (message: Message) => {
+  async onModuleInit() {
+    this.client.on(Events.MessageCreate, async (message: Message) => {
       const [galleryChannel, _] = this.getChannels(message);
 
       if (message.channelId === galleryChannel?.id && !message.author.bot) {
@@ -26,14 +31,16 @@ export class GalleryModule extends DiscordModule {
       }
     });
 
-    client.on(
+    this.client.on(
       Events.MessageReactionAdd,
       async (reaction: MessageReaction, user: User) => {
         const message = reaction.message.partial
           ? await reaction.message.fetch()
           : reaction.message;
 
-        const [galleryChannel, feedbackChannel] = this.getChannels(message);
+        const [galleryChannel, feedbackChannel] = this.getChannels(
+          message as Message,
+        );
 
         const attachment = reaction.message.attachments.first();
         if (
