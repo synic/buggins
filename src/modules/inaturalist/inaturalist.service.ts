@@ -72,7 +72,7 @@ export class INaturalistService implements OnModuleInit {
 
     embed.addFields([
       {
-        name: `*Species*`,
+        name: `Species`,
         value: `${o.species_guess || 'unknown'}`,
       },
       {
