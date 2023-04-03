@@ -5,7 +5,7 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 type DatabaseType = 'postgres' | 'sqlite' | 'mysql';
 const type: DatabaseType = (process.env.DATABASE_TYPE ??
-  'sqlite') as DatabaseType;
+  'postgres') as DatabaseType;
 
 const urlConfig =
   type === 'sqlite'
