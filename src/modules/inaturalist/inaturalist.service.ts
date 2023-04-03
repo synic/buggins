@@ -72,7 +72,7 @@ export class INaturalistService implements OnModuleInit {
 
     embed.addFields([
       {
-        name: `*Species*`,
+        name: `Species`,
         value: `${o.species_guess || 'unknown'}`,
       },
       {
@@ -109,6 +109,11 @@ export class INaturalistService implements OnModuleInit {
     this.logger.log(`Seen observation count is ${seenObservationIds.length}`);
     this.logger.log(`Unseen observation count is ${unseen.length}`);
 
+    if(unseen.length <= 0) {
+      this.logger.log(`No unseen observations left to post.`);
+      return;
+    }
+
     const userObservationMap = new Map<number, Observation[]>();
 
     for (const observation of unseen) {
@@ -125,6 +130,7 @@ export class INaturalistService implements OnModuleInit {
 
     const user = shuffleArray(Array.from(userObservationMap.keys()))[0];
     const userArray = userObservationMap.get(user);
+
     if (userArray == null) {
       this.logger.warn(`User array was null`);
       return;
