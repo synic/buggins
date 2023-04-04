@@ -1,0 +1,55 @@
+# compiled output
+/dist
+/node_modules
+tsconfig.build.tsbuildinfo
+
+# npm
+package-lock.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.~undo-tree~
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# emacs local config
+.dir-locals.el
+
+# environment files
+.env
+environment/local.env
+
+# local storage for development
+mine/*
+!mine/.keep
+
+# local storage
+/data
+sqlite.db
