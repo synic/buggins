@@ -30,7 +30,8 @@ RUN echo " -> Building production image" \
     && set -x \
     && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
     && yarn install --production \
-    && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo
+    && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo \
+    && rm -rf node_modules src
 
 FROM build-base AS base-development
 RUN echo " -> Building development image" \
