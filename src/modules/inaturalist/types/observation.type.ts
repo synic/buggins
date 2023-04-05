@@ -6,4 +6,9 @@ export type Observation = {
     large_url: string;
   }[];
   species_guess?: string;
+  taxon?: {
+    common_name?: {
+      name?: string;
+    };
+  };
 };
