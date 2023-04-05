@@ -17,26 +17,26 @@ ARG BUILD_PACKAGES
 ARG IMAGE_TYPE
 
 RUN set -x \
-    && apk update && apk add --no-cache $EXTRA_PACKAGES \
-    && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
-    && yarn install \
-    && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo
+  && apk update && apk add --no-cache $EXTRA_PACKAGES \
+  && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
+  && yarn install \
+  && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo
 
 COPY . /app
 RUN yarn build
 
 FROM build-base AS base-production
 RUN echo " -> Building production image" \
-    && set -x \
-    && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
-    && yarn install --production \
-    && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo \
-    && rm -rf node_modules src
+  && set -x \
+  && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
+  && yarn install --production \
+  && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo \
+  && rm -rf src lib do
 
 FROM build-base AS base-development
 RUN echo " -> Building development image" \
-    && set -x \
-    && apk add --no-cache $DEV_PACKAGES
+  && set -x \
+  && apk add --no-cache $DEV_PACKAGES
 
 FROM base-${IMAGE_TYPE} AS final
 
@@ -45,10 +45,10 @@ ARG IMAGE_TYPE
 ENV PROMPT="\[\e[35m\]buggins>\[\e[m\] "
 
 RUN echo "Chosen build is ${IMAGE_TYPE}..." \
-    && echo $BUILD_HASH >> /.buildinfo \
-    && echo 'PS1=$PROMPT' >> ~/.bashrc \
-    && echo "export PATH=$PATH:/app/node_modules/.bin" >> ~/.bashrc \
-    && echo 'source /app/environment/local.env 2> /dev/null' >> ~/.bashrc
+  && echo $BUILD_HASH >> /.buildinfo \
+  && echo 'PS1=$PROMPT' >> ~/.bashrc \
+  && echo "export PATH=$PATH:/app/node_modules/.bin" >> ~/.bashrc \
+  && echo 'source /app/environment/local.env 2> /dev/null' >> ~/.bashrc
 
 ENTRYPOINT [ "/app/docker/entrypoint.sh" ]
 CMD [ "/app/docker/api/command.sh" ]
