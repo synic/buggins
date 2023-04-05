@@ -59,8 +59,10 @@ export class INaturalistService {
 
     embed.addFields([
       {
-        name: `Species`,
-        value: `${o.species_guess || 'unknown'}`,
+        name: `Taxon`,
+        value: `${
+          (o.taxon?.common_name?.name ?? o.species_guess) || 'unknown'
+        }`,
       },
       {
         name: 'iNaturalist Link',
