@@ -10,5 +10,8 @@ export type Observation = {
     common_name?: {
       name?: string;
     };
+    default_name?: {
+      name?: string;
+    };
   };
 };

@@ -61,7 +61,10 @@ export class INaturalistService {
       {
         name: `Taxon`,
         value: `${
-          (o.taxon?.common_name?.name ?? o.species_guess) || 'unknown'
+          (o.taxon?.common_name?.name ??
+            o.taxon?.default_name?.name ??
+            o.species_guess) ||
+          'unknown'
         }`,
       },
       {
