@@ -1,6 +1,6 @@
 ARG IMAGE_TYPE="production"
-ARG EXTRA_PACKAGES="postgresql-client git bash vim"
-ARG DEV_PACKAGES="curl netcat-openbsd iputils procps git"
+ARG EXTRA_PACKAGES="postgresql-client"
+ARG DEV_PACKAGES="curl netcat-openbsd iputils procps git bash vim"
 ARG BUILD_PACKAGES="python3 g++ make git"
 
 FROM node:18-alpine AS base
@@ -31,7 +31,7 @@ RUN echo " -> Building production image" \
   && apk add --no-cache --virtual .build-deps $BUILD_PACKAGES \
   && yarn install --production \
   && [ "production" = "${IMAGE_TYPE}" ] && apk del .build-deps || echo \
-  && rm -rf src lib do
+  && rm -rf src lib do tsconfig.json tsconfig.build.json nest-cli.json
 
 FROM build-base AS base-development
 RUN echo " -> Building development image" \
