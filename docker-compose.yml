@@ -8,8 +8,6 @@ services:
   buggins-db:
     image: postgres:15-alpine
     container_name: buggins-db
-    ports:
-      - '127.0.0.1:25432:5432'
     environment:
       POSTGRES_PASSWORD: buggins
       POSTGRES_USER: buggins
@@ -27,8 +25,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - '127.0.0.1:8090:3000' # http
-      - '127.0.0.1:9231:9229' # remote debugger
+      - '127.0.0.1:9231:9230' # remote debugger
     command: /app/docker/api/debug_command.sh
     depends_on:
       - buggins-db

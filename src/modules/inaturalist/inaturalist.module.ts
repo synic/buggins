@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import inaturalistConfig from './inaturalist.config';
+import { INaturalistListener } from './inaturalist.listener';
 import { INaturalistService } from './inaturalist.service';
 import { LoadInatCommand } from './loadinat.command';
 import { SeenObservation } from './seen-observation.entity';
@@ -13,7 +14,7 @@ import { SeenObservation } from './seen-observation.entity';
     TypeOrmModule.forFeature([SeenObservation]),
     DiscordModule,
   ],
-  providers: [INaturalistService, LoadInatCommand],
+  providers: [INaturalistService, INaturalistListener, LoadInatCommand],
   exports: [INaturalistService],
 })
 export class INaturalistModule {}

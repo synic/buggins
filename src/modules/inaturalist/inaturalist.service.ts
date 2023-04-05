@@ -1,9 +1,7 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
 import { In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { CronJob } from 'cron';
 import { EmbedBuilder, TextChannel } from 'discord.js';
 import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
@@ -14,7 +12,7 @@ import inaturalistConfig from './inaturalist.config';
 import { DiscordService } from '@buggins/discord/discord.service';
 
 @Injectable()
-export class INaturalistService implements OnModuleInit {
+export class INaturalistService {
   private readonly logger = new Logger(INaturalistService.name);
 
   constructor(
@@ -23,18 +21,7 @@ export class INaturalistService implements OnModuleInit {
     private readonly config: ConfigType<typeof inaturalistConfig>,
     @InjectRepository(SeenObservation)
     private readonly seenObservationsRepository: Repository<SeenObservation>,
-    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
-
-  onModuleInit() {
-    const job = new CronJob(this.config.cronPattern, () => this.fetch());
-    this.schedulerRegistry.addCronJob('inaturalist-fetch', job);
-    job.start();
-
-    this.logger.log(
-      `Set up iNaturalist fetch cronjob with pattern: ${this.config.cronPattern}`,
-    );
-  }
 
   private async fetchRecentProjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
