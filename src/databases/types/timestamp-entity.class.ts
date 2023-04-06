@@ -6,7 +6,7 @@ import {
 
 export abstract class TimestampEntity {
   @PrimaryGeneratedColumn()
-  id: string;
+  id: number;
 
   @CreateDateColumn()
   createdAt: Date;

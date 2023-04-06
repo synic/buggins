@@ -25,7 +25,7 @@ services:
     volumes:
       - .:/app
     ports:
-      - '127.0.0.1:9231:9230' # remote debugger
+      - '127.0.0.1:9235:9229' # remote debugger
     command: /app/docker/api/debug_command.sh
     depends_on:
       - buggins-db

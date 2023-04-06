@@ -2,11 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConsoleModule } from '@squareboat/nest-console';
 import { DatabasesModule } from './databases/databases.module';
 import { DiscordModule } from './discord/discord.module';
-import { PhotoFeedbackModule } from './modules/photo-feedback/photo-feedback.module';
-import { INaturalistModule } from './modules/inaturalist/inaturalist.module';
 import { ScheduleModule } from '@nestjs/schedule';
-
-const enabledModules = [INaturalistModule, PhotoFeedbackModule];
+import { INaturalistModule } from './modules/inaturalist/inaturalist.module';
 
 @Module({
   imports: [
@@ -15,7 +12,8 @@ const enabledModules = [INaturalistModule, PhotoFeedbackModule];
     DiscordModule,
     ScheduleModule.forRoot(),
 
-    ...enabledModules,
+    // bot modules
+    INaturalistModule,
   ],
 })
 export class AppModule {}

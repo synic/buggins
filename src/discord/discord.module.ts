@@ -4,6 +4,8 @@ import discordConfig from './discord.config';
 import { GatewayIntentBits, Partials } from 'discord.js';
 import { DiscordModule as BaseDiscordModule } from '@discord-nestjs/core';
 import { DiscordService } from './discord.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { GuildEntity } from './guild.entity';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { DiscordService } from './discord.service';
         ],
       }),
     }),
+    TypeOrmModule.forFeature([GuildEntity]),
   ],
   providers: [DiscordService],
   exports: [DiscordService, BaseDiscordModule.forFeature()],

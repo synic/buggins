@@ -1,25 +1,31 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Once, InjectDiscordClient } from '@discord-nestjs/core';
 import { Channel, Client, Events, Guild } from 'discord.js';
-import discordConfig from './discord.config';
-import { ConfigType } from '@nestjs/config';
+import { GuildEntity } from './guild.entity';
 
 @Injectable()
 export class DiscordService {
   private readonly logger = new Logger(DiscordService.name);
 
-  constructor(
-    @Inject(discordConfig.KEY)
-    private readonly config: ConfigType<typeof discordConfig>,
-    @InjectDiscordClient() private readonly client: Client,
-  ) {}
+  constructor(@InjectDiscordClient() private readonly client: Client) {}
 
-  getGuild(): Guild | null {
-    return this.client.guilds.cache.get(this.config.guildId) ?? null;
+  findDiscordGuild(guildIdOrGuildentity: string | GuildEntity): Guild | null {
+    const id =
+      typeof guildIdOrGuildentity === 'string'
+        ? guildIdOrGuildentity
+        : guildIdOrGuildentity.id;
+    return this.client.guilds.cache.get(id) ?? null;
   }
 
-  findChannelByName<T extends Channel>(name: string): T | null {
-    return this.getGuild()?.channels.cache.find(
+  findChannelByName<T extends Channel>(
+    guildOrGuildId: string | Guild,
+    name: string,
+  ): T | null {
+    const guild =
+      typeof guildOrGuildId === 'string'
+        ? this.findDiscordGuild(guildOrGuildId)
+        : guildOrGuildId;
+    return guild?.channels.cache.find(
       (c) => c.name.toLowerCase() === name.toLowerCase(),
     ) as T;
   }
