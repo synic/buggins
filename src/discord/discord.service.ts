@@ -14,12 +14,12 @@ export class DiscordService {
     @InjectDiscordClient() private readonly client: Client,
   ) {}
 
-  getGuild(): Guild | null {
+  findDiscordGuild(): Guild | null {
     return this.client.guilds.cache.get(this.config.guildId) ?? null;
   }
 
-  findChannelByName<T extends Channel>(name: string): T | null {
-    return this.getGuild()?.channels.cache.find(
+  findDiscordChannelByName<T extends Channel>(name: string): T | null {
+    return this.findDiscordGuild()?.channels.cache.find(
       (c) => c.name.toLowerCase() === name.toLowerCase(),
     ) as T;
   }

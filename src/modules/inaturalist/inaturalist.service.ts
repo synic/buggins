@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { CronJob } from 'cron';
 import { ConfigType } from '@nestjs/config';
 import { In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,21 +8,33 @@ import { Observation } from './types';
 import { Result, Ok } from 'ts-results';
 import { FetchCommunicationError } from '@buggins/common/types';
 import { httpRequest, shuffleArray } from '@buggins/common/utils';
-import { SeenObservation } from './seen-observation.entity';
+import { SeenObservationEntity } from './seen-observation.entity';
 import inaturalistConfig from './inaturalist.config';
 import { DiscordService } from '@buggins/discord/discord.service';
+import { SchedulerRegistry } from '@nestjs/schedule';
 
 @Injectable()
-export class INaturalistService {
+export class INaturalistService implements OnModuleInit {
   private readonly logger = new Logger(INaturalistService.name);
 
   constructor(
     private readonly discordService: DiscordService,
     @Inject(inaturalistConfig.KEY)
     private readonly config: ConfigType<typeof inaturalistConfig>,
-    @InjectRepository(SeenObservation)
-    private readonly seenObservationsRepository: Repository<SeenObservation>,
+    @InjectRepository(SeenObservationEntity)
+    private readonly seenObservationsRepository: Repository<SeenObservationEntity>,
+    private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
+
+  onModuleInit(): void {
+    const job = new CronJob(this.config.cronPattern, () => this.fetch());
+    this.schedulerRegistry.addCronJob('inaturalist-fetch', job);
+    job.start();
+
+    this.logger.log(
+      `Set up fetch cronjob with pattern: ${this.config.cronPattern}`,
+    );
+  }
 
   private async fetchRecentProjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
@@ -41,7 +54,7 @@ export class INaturalistService {
   }
 
   private async showObservation(o: Observation): Promise<void> {
-    const channel = this.discordService.findChannelByName<TextChannel>(
+    const channel = this.discordService.findDiscordChannelByName<TextChannel>(
       this.config.channelName,
     );
 
@@ -84,7 +97,7 @@ export class INaturalistService {
     return;
   }
 
-  async getRandomObservation(
+  async selectRandomObservation(
     observations: Observation[],
   ): Promise<Observation | null> {
     const observationIds = observations.map((o) => o.id);
@@ -142,7 +155,7 @@ export class INaturalistService {
       return;
     }
 
-    const observation = await this.getRandomObservation(
+    const observation = await this.selectRandomObservation(
       observationsResponse.val,
     );
 
