@@ -85,7 +85,7 @@ export class INaturalistService implements OnModuleInit {
         value: `https://inaturalist.org/observations/${o.id}`,
       },
       {
-        name: 'iNaturalist Project',
+        name: 'Our community iNaturalist Project',
         value: `https://inaturalist.org/projects/${this.config.projectId}`,
       },
     ]);
