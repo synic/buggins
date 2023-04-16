@@ -41,7 +41,7 @@ export class INaturalistService implements OnModuleInit {
   > {
     const response = await httpRequest<Observation[]>({
       server: 'https://inaturalist.org',
-      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc&per_page=50`,
+      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc&per_page=100`,
     });
 
     if (!response.ok) return response;
