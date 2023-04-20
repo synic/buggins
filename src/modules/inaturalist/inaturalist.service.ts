@@ -46,7 +46,14 @@ export class INaturalistService implements OnModuleInit {
 
     if (!response.ok) return response;
 
-    return Ok(response.val);
+    return Ok(
+      response.val.filter((o) => {
+        return (
+          (o.photos || []).length > 0 &&
+          ![undefined, ''].includes(o.photos[0].large_url)
+        );
+      }),
+    );
   }
 
   private async markObservationAsSeen(o: Observation): Promise<void> {
