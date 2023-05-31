@@ -22,7 +22,7 @@ export class LoadInatCommand {
       return 'Only administrators can use this command';
     }
 
-    await this.inaturalistService.fetch();
+    this.inaturalistService.fetch();
     return 'Done!';
   }
 }
