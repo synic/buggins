@@ -16,6 +16,8 @@ import { SchedulerRegistry } from '@nestjs/schedule';
 @Injectable()
 export class INaturalistService implements OnModuleInit {
   private readonly logger = new Logger(INaturalistService.name);
+  private readonly pageSize = 200;
+  private readonly displayedObservers = new Set<number>();
 
   constructor(
     private readonly discordService: DiscordService,
@@ -39,25 +41,56 @@ export class INaturalistService implements OnModuleInit {
   private async fetchRecentProjectObservations(): Promise<
     Result<Observation[], FetchCommunicationError>
   > {
-    const response = await httpRequest<Observation[]>({
-      server: 'https://inaturalist.org',
-      path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc&per_page=100`,
-    });
+    const observations: Observation[] = [];
 
-    if (!response.ok) return response;
+    const now = new Date();
+    const start = new Date();
+    start.setMonth(now.getMonth() - 1);
+    console.log('Loading recent observations');
 
-    return Ok(
-      response.val.filter((o) => {
-        return (
-          (o.photos || []).length > 0 &&
-          ![undefined, ''].includes(o.photos[0].large_url)
-        );
-      }),
-    );
+    const maxPages = 5;
+    let tries = 0;
+
+    while (tries < maxPages) {
+      console.log(`tries is ${tries}`);
+      const response = await httpRequest<Observation[]>({
+        server: 'https://inaturalist.org',
+        path: `observations/project/${
+          this.config.projectId
+        }.json?order_by=id&order=desc&per_page=${this.pageSize}&d1=${start
+          .toISOString()
+          .slice(0, 10)}`,
+      });
+
+      if (!response.ok) {
+        if (observations.length > 0) return Ok(observations);
+        return response;
+      }
+
+      response.val
+        .filter((o) => {
+          return (
+            (o.photos || []).length > 0 &&
+            ![undefined, ''].includes(o.photos[0].large_url)
+          );
+        })
+        .forEach((o) => observations.push(o));
+
+      if (response.val.length < this.pageSize) {
+        return Ok(observations);
+      }
+      tries++;
+    }
+    return Ok(observations);
   }
 
   private async markObservationAsSeen(o: Observation): Promise<void> {
     await this.seenObservationsRepository.save({ observationId: o.id });
+    if (!this.displayedObservers.has(o.user_id)) {
+      this.displayedObservers.add(o.user_id);
+    }
+
+    console.log(this.displayedObservers);
   }
 
   private async showObservation(o: Observation): Promise<void> {
@@ -126,30 +159,42 @@ export class INaturalistService implements OnModuleInit {
       return null;
     }
 
-    const userObservationMap = new Map<number, Observation[]>();
+    const observerObservationMap = new Map<number, Observation[]>();
 
     for (const observation of unseen) {
       let userObservations: Observation[] | null =
-        userObservationMap.get(observation.user_id) ?? null;
+        observerObservationMap.get(observation.user_id) ?? null;
       if (userObservations == null) {
         userObservations = [];
-        userObservationMap.set(observation.user_id, userObservations);
+        observerObservationMap.set(observation.user_id, userObservations);
       }
 
       userObservations.push(observation);
     }
 
-    const user = shuffleArray(Array.from(userObservationMap.keys()))[0];
-    const userArray = userObservationMap.get(user);
+    const observers = new Set(observerObservationMap.keys());
+    let potentialObservers = new Set(
+      [...observers].filter((o) => !this.displayedObservers.has(o)),
+    );
 
-    if (userArray == null) {
+    if (potentialObservers.size <= 0) {
+      potentialObservers = new Set(observers);
+      this.displayedObservers.clear();
+    }
+
+    const observer = shuffleArray(Array.from(observerObservationMap.keys()))[0];
+    const observerArray = observerObservationMap.get(observer);
+
+    if (observerArray == null) {
       this.logger.warn(`User array was null`);
       return null;
     }
 
-    this.logger.log(`User is ${user}, items for user is ${userArray.length}`);
+    this.logger.log(
+      `User is ${observer}, items for user is ${observerArray.length}`,
+    );
 
-    return shuffleArray(userArray)[0];
+    return shuffleArray(observerArray)[0];
   }
 
   async fetch(): Promise<void> {
