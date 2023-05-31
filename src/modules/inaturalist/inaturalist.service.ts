@@ -43,20 +43,13 @@ export class INaturalistService implements OnModuleInit {
   > {
     const observations: Observation[] = [];
 
-    const now = new Date();
-    const start = new Date();
-    start.setMonth(now.getMonth() - 1);
-    const maxPages = 5;
+    const maxPages = 10;
     let tries = 0;
 
     while (tries < maxPages) {
       const response = await httpRequest<Observation[]>({
         server: 'https://inaturalist.org',
-        path: `observations/project/${
-          this.config.projectId
-        }.json?order_by=id&order=desc&per_page=${this.pageSize}&d1=${start
-          .toISOString()
-          .slice(0, 10)}`,
+        path: `observations/project/${this.config.projectId}.json?order_by=id&order=desc&per_page=${this.pageSize}`,
       });
 
       if (!response.ok) {
@@ -86,6 +79,8 @@ export class INaturalistService implements OnModuleInit {
     if (!this.displayedObservers.has(o.user_id)) {
       this.displayedObservers.add(o.user_id);
     }
+
+    this.logger.log(`displayedObservers ${this.displayedObservers}`);
   }
 
   private async showObservation(o: Observation): Promise<void> {
