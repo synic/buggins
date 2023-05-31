@@ -46,13 +46,10 @@ export class INaturalistService implements OnModuleInit {
     const now = new Date();
     const start = new Date();
     start.setMonth(now.getMonth() - 1);
-    console.log('Loading recent observations');
-
     const maxPages = 5;
     let tries = 0;
 
     while (tries < maxPages) {
-      console.log(`tries is ${tries}`);
       const response = await httpRequest<Observation[]>({
         server: 'https://inaturalist.org',
         path: `observations/project/${
@@ -89,8 +86,6 @@ export class INaturalistService implements OnModuleInit {
     if (!this.displayedObservers.has(o.user_id)) {
       this.displayedObservers.add(o.user_id);
     }
-
-    console.log(this.displayedObservers);
   }
 
   private async showObservation(o: Observation): Promise<void> {
