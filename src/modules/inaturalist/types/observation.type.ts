@@ -7,6 +7,7 @@ export type Observation = {
   }[];
   species_guess?: string;
   taxon?: {
+    name?: string;
     common_name?: {
       name?: string;
     };

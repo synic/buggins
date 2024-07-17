@@ -103,12 +103,12 @@ export class INaturalistService implements OnModuleInit {
     embed.addFields([
       {
         name: `Taxon`,
-        value: `${
+        value: `${o?.taxon?.name ?? 'unknown'} (${
           (o.taxon?.common_name?.name ??
             o.taxon?.default_name?.name ??
             o.species_guess) ||
           'unknown'
-        }`,
+        })`,
       },
       {
         name: 'iNaturalist Link',
