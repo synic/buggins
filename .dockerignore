@@ -9,17 +9,13 @@
 
 # build
 /bin/*
-!/bin/.gitkeep
-
-# data
-/data/*
-!/data/.gitkeep
+!/bin/.keep
 
 # environments
 /.env
 
 # database
-/.db
+/data
 
 # misc
 .DS_Store
