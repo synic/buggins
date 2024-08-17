@@ -1,3 +1,0 @@
-[submodule "lib/dockerman"]
-	path = lib/dockerman
-	url = https://github.com/synic/dockerman
