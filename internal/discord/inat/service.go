@@ -11,19 +11,19 @@ import (
 	"adamolsen.dev/buggins/internal/store"
 )
 
-type ServiceConfig struct {
-	ProjectID string
-	Store     *store.Queries
-	PageSize  int
+type serviceConfig struct {
+	projectID string
+	store     *store.Queries
+	pageSize  int
 }
 
 type service struct {
-	ServiceConfig
+	serviceConfig
 	displayedObservers []int64
 }
 
-func NewService(config ServiceConfig) service {
-	return service{ServiceConfig: config}
+func newService(config serviceConfig) service {
+	return service{serviceConfig: config}
 }
 
 func (s *service) selectUnseenObservation(observations []observation) (observation, error) {
@@ -39,7 +39,7 @@ func (s *service) selectUnseenObservation(observations []observation) (observati
 		observationIds = append(observationIds, o.ID)
 	}
 
-	seen, err := s.Store.FindObservationsByIds(context.Background(), observationIds)
+	seen, err := s.store.FindObservationsByIds(context.Background(), observationIds)
 
 	if err != nil {
 		return observation{}, fmt.Errorf("error selecting seen observations: %w", err)
@@ -105,7 +105,7 @@ func (s *service) selectUnseenObservation(observations []observation) (observati
 }
 
 func (s *service) FindUnseenObservation() (observation, error) {
-	observations, err := fetchRecentProjectObservations(s.ProjectID, s.PageSize, 200)
+	observations, err := fetchRecentProjectObservations(s.projectID, s.pageSize, 200)
 
 	if len(observations) <= 0 {
 		if err != nil {
@@ -132,7 +132,7 @@ func (s *service) MarkObservationAsSeen(
 		s.displayedObservers = append(s.displayedObservers, o.UserID)
 	}
 
-	seen, err := s.Store.CreateSeenObservation(ctx, o.ID)
+	seen, err := s.store.CreateSeenObservation(ctx, o.ID)
 
 	if err != nil {
 		return store.SeenObservation{}, fmt.Errorf("error saving seen observation: %w", err)

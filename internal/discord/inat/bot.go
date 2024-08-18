@@ -8,40 +8,55 @@ import (
 	"github.com/bwmarrin/discordgo"
 	dg "github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
+
+	"adamolsen.dev/buggins/internal/store"
 )
 
 type BotConfig struct {
-	Service     service
 	CronPattern string
 	Discord     *dg.Session
 	ChannelID   string
 	GuildID     string
+	ProjectID   string
+	Store       *store.Queries
+	PageSize    int
 }
 
 type bot struct {
 	BotConfig
-	job *cron.Cron
+	svc       service
+	job       *cron.Cron
+	isRunning bool
 }
 
-func NewBot(config BotConfig) bot {
-	b := bot{BotConfig: config}
+func New(config BotConfig) *bot {
+	s := newService(
+		serviceConfig{
+			projectID: config.ProjectID,
+			pageSize:  config.PageSize,
+			store:     config.Store,
+		},
+	)
+	b := bot{BotConfig: config, svc: s}
 	b.registerHandlers()
-	return b
+	return &b
 }
 
-func (b *bot) StartPosting() {
-	b.StopPosting()
+func (b *bot) Start() {
+	b.isRunning = true
+	b.Stop()
 	b.job = cron.New()
 	b.job.AddFunc(b.CronPattern, b.Post)
 	b.job.Start()
-	log.Printf("Started cron with pattern '%s'", b.CronPattern)
+	log.Printf("Started inat bot with cron pattern '%s'...", b.CronPattern)
 }
 
-func (b *bot) StopPosting() {
+func (b *bot) Stop() {
+	b.isRunning = false
 	if b.job != nil {
 		b.job.Stop()
 		b.job = nil
-		log.Print("Stopped posting cron job")
+		log.Print("Stopped inat bot...")
 	}
 }
 
@@ -51,11 +66,15 @@ func (b *bot) registerHandlers() {
 	})
 
 	b.Discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
+		if !b.isRunning {
+			return
+		}
+
 		if i.ApplicationCommandData().Name == "loadinat" {
 			log.Println("/loadinat called, loading observation to display")
 			go b.Post()
 
-			b.Discord.InteractionRespond(i.Interaction, &dg.InteractionResponse{
+			d.InteractionRespond(i.Interaction, &dg.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: "Done, observation is loading and will be posted soon!",
@@ -81,8 +100,12 @@ func (b *bot) registerSlashCommands() {
 }
 
 func (b *bot) Post() {
+	if !b.isRunning {
+		return
+	}
+
 	log.Print("Attempting to fetch an unseen observation to display")
-	o, err := b.Service.FindUnseenObservation()
+	o, err := b.svc.FindUnseenObservation()
 
 	if err != nil {
 		log.Printf("error fetching unseen observation: %v", err)
@@ -128,7 +151,7 @@ func (b *bot) Post() {
 					Name: "Our community iNaturalist Project",
 					Value: fmt.Sprintf(
 						"https://inaturalist.org/projects/%s",
-						b.Service.ProjectID,
+						b.svc.projectID,
 					),
 				},
 			},
@@ -137,5 +160,5 @@ func (b *bot) Post() {
 
 	log.Printf("Displaying observation id %d from %s", o.ID, o.Username)
 
-	b.Service.MarkObservationAsSeen(context.Background(), o)
+	b.svc.MarkObservationAsSeen(context.Background(), o)
 }
