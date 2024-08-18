@@ -4,25 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"slices"
 
-	"adamolsen.dev/buggins/internal/db"
+	"adamolsen.dev/buggins/internal/store"
 )
-
-func getKeysFromObserverMap(m map[int64][]observation) []int64 {
-	keys := make([]int64, len(m))
-	i := 0
-	for k := range m {
-		keys[i] = k
-		i++
-	}
-	return keys
-}
 
 type ServiceConfig struct {
 	ProjectID string
-	DB        *db.Queries
+	Store     *store.Queries
 	PageSize  int
 }
 
@@ -48,7 +39,7 @@ func (s *service) selectUnseenObservation(observations []observation) (observati
 		observationIds = append(observationIds, o.ID)
 	}
 
-	seen, err := s.DB.FindObservationsByIds(context.Background(), observationIds)
+	seen, err := s.Store.FindObservationsByIds(context.Background(), observationIds)
 
 	if err != nil {
 		return observation{}, fmt.Errorf("error selecting seen observations: %w", err)
@@ -85,7 +76,7 @@ func (s *service) selectUnseenObservation(observations []observation) (observati
 	}
 
 	if len(potentialObservers) <= 0 {
-		potentialObservers = getKeysFromObserverMap(observerMap)
+		potentialObservers = slices.Collect(maps.Keys(observerMap))
 		s.displayedObservers = s.displayedObservers[:0]
 	}
 
@@ -136,15 +127,15 @@ func (s *service) FindUnseenObservation() (observation, error) {
 func (s *service) MarkObservationAsSeen(
 	ctx context.Context,
 	o observation,
-) (db.SeenObservation, error) {
+) (store.SeenObservation, error) {
 	if !slices.Contains(s.displayedObservers, o.UserID) {
 		s.displayedObservers = append(s.displayedObservers, o.UserID)
 	}
 
-	seen, err := s.DB.CreateSeenObservation(ctx, o.ID)
+	seen, err := s.Store.CreateSeenObservation(ctx, o.ID)
 
 	if err != nil {
-		return db.SeenObservation{}, fmt.Errorf("error saving seen observation: %w", err)
+		return store.SeenObservation{}, fmt.Errorf("error saving seen observation: %w", err)
 	}
 
 	return seen, nil

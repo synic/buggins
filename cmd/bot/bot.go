@@ -1,19 +1,30 @@
-package bot
+package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
+	_ "github.com/mattn/go-sqlite3"
 
-	"adamolsen.dev/buggins/internal/db"
 	"adamolsen.dev/buggins/internal/inat"
 	"adamolsen.dev/buggins/internal/pkg/env"
+	"adamolsen.dev/buggins/internal/store"
 )
 
-func Start(db *db.Queries) {
+func main() {
+	conn, err := sql.Open("sqlite3", "./data/database.sqlite")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	store.RunMigrations("sqlite3", conn)
+
+	s := store.New(conn)
 	e := env.New()
 
 	token := e.GetString("DISCORD_TOKEN", "")
@@ -40,7 +51,7 @@ func Start(db *db.Queries) {
 	service := inat.NewService(inat.ServiceConfig{
 		ProjectID: projectId,
 		PageSize:  pageSize,
-		DB:        db,
+		Store:     s,
 	})
 
 	bot := inat.NewBot(inat.BotConfig{
