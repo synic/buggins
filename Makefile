@@ -32,11 +32,11 @@ install-builddeps:
 ifndef SQLC_TEST
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
 endif
+
+.PHONY: install-builddeps-dev
 ifndef AIR_TEST
 	go install github.com/cosmtrek/air@${AIR_VERSION}
 endif
-
-.PHONY: install-builddeps-dev
 ifndef GOOSE_TEST
 	go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 endif
