@@ -25,6 +25,6 @@
 /go.work
 
 # generated database files
-/internal/db/db.go
-/internal/db/models.go
-/internal/db/queries.sql.go
+/internal/store/db.go
+/internal/store/models.go
+/internal/store/queries.sql.go
