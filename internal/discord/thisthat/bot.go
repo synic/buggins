@@ -19,20 +19,20 @@ type bot struct {
 	isRunning bool
 }
 
-func shouldReact(attachments []*dg.MessageAttachment) bool {
+func getImageAttachmentCount(attachments []*dg.MessageAttachment) int {
 	if len(attachments) <= 1 {
-		return false
+		return 0
 	}
 
-	shouldReact := true
+	count := 0
 
 	for _, attachment := range attachments {
-		if !strings.Contains(attachment.ContentType, "image") {
-			shouldReact = false
+		if strings.Contains(attachment.ContentType, "image") {
+			count += 1
 		}
 	}
 
-	return shouldReact
+	return count
 }
 
 func New(config BotConfig) *bot {
@@ -57,9 +57,9 @@ func (b *bot) registerHandlers() {
 			return
 		}
 
-		if shouldReact(m.Attachments) {
-			num := len(m.Attachments)
+		num := getImageAttachmentCount(m.Attachments)
 
+		if num > 1 {
 			for _, emoji := range emojis[:num] {
 				d.MessageReactionAdd(m.ChannelID, m.ID, emoji)
 			}
