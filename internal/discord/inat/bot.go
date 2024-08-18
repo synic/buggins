@@ -43,11 +43,11 @@ func New(config BotConfig) *bot {
 }
 
 func (b *bot) Start() {
-	b.isRunning = true
 	b.Stop()
 	b.job = cron.New()
 	b.job.AddFunc(b.CronPattern, b.Post)
 	b.job.Start()
+	b.isRunning = true
 	log.Printf("Started inat bot with cron pattern '%s'...", b.CronPattern)
 }
 
