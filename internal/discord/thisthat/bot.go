@@ -7,18 +7,7 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 )
 
-var emojiMap = map[int]string{
-	0: "1️⃣",
-	1: "2️⃣",
-	2: "3️⃣",
-	3: "4️⃣",
-	4: "5️⃣",
-	5: "6️⃣",
-	6: "7️⃣",
-	7: "8️⃣",
-	8: "9️⃣",
-	9: "🔟",
-}
+var emojis = []string{"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"}
 
 type BotConfig struct {
 	Discord   *dg.Session
@@ -71,12 +60,8 @@ func (b *bot) registerHandlers() {
 		if shouldReact(m.Attachments) {
 			num := len(m.Attachments)
 
-			for i := range num {
-				emojiID, ok := emojiMap[i]
-
-				if ok {
-					d.MessageReactionAdd(m.ChannelID, m.ID, emojiID)
-				}
+			for _, emoji := range emojis[:num] {
+				d.MessageReactionAdd(m.ChannelID, m.ID, emoji)
 			}
 		}
 	})
