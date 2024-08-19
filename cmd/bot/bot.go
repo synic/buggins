@@ -10,10 +10,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
 
-	"adamolsen.dev/buggins/internal/discord/inat"
-	"adamolsen.dev/buggins/internal/discord/thisthat"
+	"adamolsen.dev/buggins/internal/inat"
 	"adamolsen.dev/buggins/internal/pkg/env"
 	"adamolsen.dev/buggins/internal/store"
+	"adamolsen.dev/buggins/internal/thisthat"
 )
 
 func main() {
