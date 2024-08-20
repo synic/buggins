@@ -42,7 +42,7 @@ func InitFromEnv(d *dg.Session, s *store.Queries) *Bot {
 	var c BotConfig
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("inatobs bot missing config, disabled.: %v", err)
+		log.Printf("inatobs bot missing config: %v", err)
 		return nil
 	}
 
@@ -58,9 +58,7 @@ func (b *Bot) Start() {
 }
 
 func (b *Bot) registerHandlers() {
-	b.discord.AddHandler(func(d *dg.Session, r *dg.Ready) {
-		b.registerSlashCommands()
-	})
+	b.registerSlashCommands()
 
 	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
 		if i.ChannelID != b.ChannelID {
