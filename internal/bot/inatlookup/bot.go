@@ -95,7 +95,7 @@ func InitFromEnvironment(d *dg.Session) *Bot {
 	var c BotConfig
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("inatlookup bot missing config, disabled.: %v\n", err)
+		log.Printf("inatlookup bot missing config, disabled: %v\n", err)
 		return nil
 	}
 
