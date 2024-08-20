@@ -47,6 +47,10 @@ build: install-builddeps clean db vet
 
 .PHONY: release
 release: install-builddeps clean db
+	go build -a -tags "release" -ldflags "-s -w" -o ${BIN} ./cmd/bot
+
+.PHONY: release-docker
+release-docker: install-builddeps clean db
 	go build -a -tags "release" \
 		-ldflags '-s -w -linkmode external -extldflags "-static"' \
 		-o ${BIN} ./cmd/bot

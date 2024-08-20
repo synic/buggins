@@ -10,7 +10,7 @@ RUN mkdir /app/data
 RUN set -x \
     && apk add --no-cache build-base=0.5-r3 make=4.4.1-r2 \
     && make install-builddeps \
-    && make release
+    && make release-docker
 
 FROM gcr.io/distroless/static-debian12:9efbcaacd8eac4960b315c502adffdbf3398ce62
 

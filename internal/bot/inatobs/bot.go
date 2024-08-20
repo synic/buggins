@@ -1,107 +1,58 @@
-package inat
+package inatobs
 
 import (
 	"context"
 	"fmt"
 	"log"
-	"regexp"
 
 	"github.com/bwmarrin/discordgo"
 	dg "github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
+	"github.com/sethvargo/go-envconfig"
 
 	"adamolsen.dev/buggins/internal/store"
 )
 
-type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
-
 type BotConfig struct {
-	CronPattern   string
-	Discord       *dg.Session
-	ChannelID     string
-	GuildID       string
-	ProjectID     string
-	Store         *store.Queries
-	PageSize      int
-	CommandPrefix string
+	CronPattern string `env:"INATOBS_CRON_PATTERN, default=0 * * * *"`
+	ChannelID   string `env:"INATOBS_CHANNEL_ID, required"`
+	ProjectID   string `env:"INATOBS_PROJECT_ID, required"`
+	PageSize    int    `env:"INATOBS_PAGE_SIZE, default=10"`
 }
 
-type bot struct {
+type Bot struct {
 	BotConfig
-	svc       service
-	job       *cron.Cron
-	isRunning bool
+	discord            *dg.Session
+	svc                service
+	handlersRegistered bool
 }
 
-func New(config BotConfig) *bot {
+func New(discord *dg.Session, db *store.Queries, config BotConfig) *Bot {
 	s := newService(
 		serviceConfig{
 			projectID: config.ProjectID,
 			pageSize:  config.PageSize,
-			store:     config.Store,
+			store:     db,
 		},
 	)
-	b := bot{BotConfig: config, svc: s}
+	return &Bot{BotConfig: config, svc: s, discord: discord}
+}
 
+func (b *Bot) Start() {
 	b.registerHandlers()
-	return &b
+	c := cron.New()
+	c.AddFunc(b.CronPattern, b.Post)
+	c.Start()
+	log.Printf("Started inatobs bot with cron pattern '%s'...", b.CronPattern)
 }
 
-func (b *bot) Start() {
-	b.Stop()
-	b.job = cron.New()
-	b.job.AddFunc(b.CronPattern, b.Post)
-	b.job.Start()
-	b.isRunning = true
-	log.Printf("Started inat bot with cron pattern '%s'...", b.CronPattern)
-}
-
-func (b *bot) Stop() {
-	b.isRunning = false
-	if b.job != nil {
-		b.job.Stop()
-		b.job = nil
-		log.Print("Stopped inat bot...")
-	}
-}
-
-func (b *bot) registerHandlers() {
-	if b.CommandPrefix == "" {
-		b.CommandPrefix = ","
-	}
-
-	commandRegex := regexp.MustCompile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, b.CommandPrefix))
-	commandHandlers := map[string]commandHandler{
-		"t": b.lookupTaxa,
-	}
-
-	b.Discord.AddHandler(func(d *dg.Session, r *dg.Ready) {
+func (b *Bot) registerHandlers() {
+	b.discord.AddHandler(func(d *dg.Session, r *dg.Ready) {
 		b.registerSlashCommands()
 	})
 
-	b.Discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
-		if !b.isRunning {
-			return
-		}
-
-		matches := commandRegex.FindStringSubmatch(m.Content)
-
-		if matches == nil {
-			return
-		}
-
-		command := matches[1]
-		rest := matches[2]
-
-		handler, ok := commandHandlers[command]
-
-		if ok {
-			handler(d, m, rest)
-		}
-	})
-
-	b.Discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
-		if !b.isRunning {
+	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
+		if i.ChannelID != b.ChannelID {
 			return
 		}
 
@@ -119,7 +70,7 @@ func (b *bot) registerHandlers() {
 	})
 }
 
-func (b *bot) registerSlashCommands() {
+func (b *Bot) registerSlashCommands() {
 	var adminPermissions int64 = discordgo.PermissionManageServer
 	command := discordgo.ApplicationCommand{
 		Name:                     "loadinat",
@@ -127,18 +78,14 @@ func (b *bot) registerSlashCommands() {
 		DefaultMemberPermissions: &adminPermissions,
 	}
 
-	_, err := b.Discord.ApplicationCommandCreate(b.Discord.State.User.ID, b.GuildID, &command)
+	_, err := b.discord.ApplicationCommandCreate(b.discord.State.User.ID, "", &command)
 
 	if err != nil {
 		log.Printf("error creating /loadinat command: %v", err)
 	}
 }
 
-func (b *bot) Post() {
-	if !b.isRunning {
-		return
-	}
-
+func (b *Bot) Post() {
 	log.Print("Attempting to fetch an unseen observation to display")
 	o, err := b.svc.FindUnseenObservation()
 
@@ -165,7 +112,7 @@ func (b *bot) Post() {
 		}
 	}
 
-	b.Discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
+	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
 		Content: fmt.Sprintf(
 			"**[%s](https://inaturalist.org/people/%d) has spotted something new!**",
 			o.Username,
@@ -196,4 +143,15 @@ func (b *bot) Post() {
 	log.Printf("Displaying observation id %d from %s", o.ID, o.Username)
 
 	b.svc.MarkObservationAsSeen(context.Background(), o)
+}
+
+func InitFromEnvironment(d *dg.Session, s *store.Queries) *Bot {
+	var c BotConfig
+
+	if err := envconfig.Process(context.Background(), &c); err != nil {
+		log.Printf("inatobs bot missing config, disabled.: %v\n", err)
+		return nil
+	}
+
+	return New(d, s, c)
 }

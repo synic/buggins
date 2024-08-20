@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -8,78 +9,68 @@ import (
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/sethvargo/go-envconfig"
 
-	"adamolsen.dev/buggins/internal/inat"
-	"adamolsen.dev/buggins/internal/pkg/env"
+	"adamolsen.dev/buggins/internal/bot/inatlookup"
+	"adamolsen.dev/buggins/internal/bot/inatobs"
+	"adamolsen.dev/buggins/internal/bot/thisthat"
 	"adamolsen.dev/buggins/internal/store"
-	"adamolsen.dev/buggins/internal/thisthat"
 )
 
-func main() {
-	conn, err := sql.Open("sqlite3", "./data/database.sqlite")
+type config struct {
+	DiscordToken string `env:"DISCORD_TOKEN, required"`
+	DatabaseURL  string `env:"DATABASE_URL, default=./data/database.sqlite"`
+}
+
+type bot interface{ Start() }
+
+func initDB(url string) *store.Queries {
+	conn, err := sql.Open("sqlite3", url)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	store.RunMigrations("sqlite3", conn)
+	return store.New(conn)
+}
 
-	s := store.New(conn)
-	e := env.New()
+func main() {
+	var conf config
 
-	token := e.GetString("DISCORD_TOKEN", "")
-	guildID := e.GetString("DISCORD_GUILD_ID", "")
-	inatProjectID := e.GetString("INATURALIST_PROJECT_ID", "")
-	inatChannelID := e.GetString("INATURALIST_CHANNEL_ID", "")
-	inatCronPattern := e.GetString("INATURALIST_CRON_PATTERN", "0 * * * *")
-	inatPageSize := e.GetInt("INATURALIST_FETCH_PAGE_SIZE", 10)
-	thisThatChannelID := e.GetString("THISTHAT_CHANNEL_ID", "")
+	godotenv.Load()
 
-	if token == "" || guildID == "" || inatProjectID == "" || inatChannelID == "" {
-		log.Fatal(
-			"You must set the DISCORD_TOKEN, DISCORD_GUILD_ID, " +
-				"INATURALIST_CHANNEL_ID, and INATURALIST_PROJECT_ID " +
-				"environment variables.",
-		)
+	if err := envconfig.Process(context.Background(), &conf); err != nil {
+		log.Fatal(err)
 	}
 
-	discord, err := discordgo.New(fmt.Sprintf("Bot %s", token))
+	discord, err := discordgo.New(fmt.Sprintf("Bot %s", conf.DiscordToken))
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	inatBot := inat.New(inat.BotConfig{
-		CronPattern: inatCronPattern,
-		Discord:     discord,
-		ChannelID:   inatChannelID,
-		GuildID:     guildID,
-		ProjectID:   inatProjectID,
-		PageSize:    inatPageSize,
-		Store:       s,
-	})
+	db := initDB(conf.DatabaseURL)
 
-	thisthatBot := thisthat.New(
-		thisthat.BotConfig{
-			Discord:   discord,
-			ChannelID: thisThatChannelID,
-		},
-	)
+	bots := []bot{
+		inatobs.InitFromEnvironment(discord, db),
+		inatlookup.InitFromEnvironment(discord),
+		thisthat.InitFromEnvironment(discord),
+	}
 
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("User %s connected to discord!", r.User.Username)
+		log.Printf("User '%s' connected to discord!", r.User.Username)
 
-		inatBot.Start()
-
-		if thisThatChannelID != "" {
-			thisthatBot.Start()
+		for _, bot := range bots {
+			if bot != nil {
+				bot.Start()
+			}
 		}
 	})
 
-	err = discord.Open()
-
-	if err != nil {
+	if err := discord.Open(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -87,8 +78,7 @@ func main() {
 	signal.Notify(sigch, os.Interrupt)
 	<-sigch
 
-	err = discord.Close()
-	if err != nil {
+	if err := discord.Close(); err != nil {
 		log.Printf("could not close session gracefully: %s", err)
 	}
 }

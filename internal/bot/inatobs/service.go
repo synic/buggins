@@ -1,4 +1,4 @@
-package inat
+package inatobs
 
 import (
 	"context"
@@ -25,12 +25,7 @@ type service struct {
 }
 
 func newService(config serviceConfig) service {
-	return service{serviceConfig: config}
-}
-
-func (s *service) searchTaxa(q string) (inatapi.SearchResult, error) {
-	r, err := s.api.Search([]string{"taxa"}, q)
-	return r, err
+	return service{serviceConfig: config, api: inatapi.New()}
 }
 
 func (s *service) selectUnseenObservation(
