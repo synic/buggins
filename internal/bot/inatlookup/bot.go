@@ -33,15 +33,14 @@ func New(discord *dg.Session, config BotConfig) *Bot {
 	return &Bot{BotConfig: config, api: inatapi.New(), discord: discord}
 }
 
-func InitFromEnv(d *dg.Session) *Bot {
+func InitFromEnv(d *dg.Session) (*Bot, error) {
 	var c BotConfig
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("inatlookup bot missing config, disabled: %v", err)
-		return nil
+		return nil, fmt.Errorf("inatlookup bot missing config: %v", err)
 	}
 
-	return New(d, c)
+	return New(d, c), nil
 }
 
 func (b *Bot) Start() {
@@ -100,7 +99,7 @@ func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 
 		b.discord.ChannelMessageSendComplex(m.ChannelID, &dg.MessageSend{
 			Embed: &dg.MessageEmbed{
-				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.SquareUrl},
+				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumUrl},
 				Color:     5763719,
 				Fields: []*dg.MessageEmbedField{
 					{

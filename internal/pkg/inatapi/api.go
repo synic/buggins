@@ -85,7 +85,7 @@ func (a Api) FetchRecentProjectObservations(
 
 		for _, item := range items {
 			if item.Photos != nil && len(item.Photos) > 0 {
-				if item.Photos[0].LargeUrl != "" {
+				if item.Photos[0].MediumUrl != "" {
 					observations = append(observations, item)
 				}
 			}

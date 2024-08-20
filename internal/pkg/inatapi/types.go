@@ -1,8 +1,8 @@
 package inatapi
 
 // Observations
-type observationPhotos struct {
-	LargeUrl string `json:"large_url"`
+type Photo struct {
+	MediumUrl string `json:"medium_url"`
 }
 
 type observationTaxonName struct {
@@ -16,40 +16,36 @@ type observationTaxon struct {
 }
 
 type Observation struct {
-	Species  string              `json:"species_guess"`
-	Taxon    observationTaxon    `json:"taxon"`
-	Username string              `json:"user_login"`
-	Photos   []observationPhotos `json:"photos"`
-	ID       int64               `json:"id"`
-	UserID   int64               `json:"user_id"`
+	Species  string           `json:"species_guess"`
+	Taxon    observationTaxon `json:"taxon"`
+	Username string           `json:"user_login"`
+	Photos   []Photo          `json:"photos"`
+	ID       int64            `json:"id"`
+	UserID   int64            `json:"user_id"`
 }
 
-// Search Results
-type searchResultItemRecordPhoto struct {
-	Url       string `json:"url"`
-	MediumUrl string `json:"medium_url"`
-	SquareUrl string `json:"square_url"`
-}
-
-type searchResultItemRecordTaxaData struct {
+// taxa
+type Taxa struct {
 	Rank                string `json:"rank"`
 	ObservationCount    int64  `json:"observations_count"`
+	DefaultPhoto        Photo  `json:"default_photo"`
 	PreferredCommonName string `json:"preferred_common_name"`
 }
 
-type searchResultItemRecord struct {
-	DefaultPhoto searchResultItemRecordPhoto `json:"default_photo"`
-	ID           int64                       `json:"id"`
-	Name         string                      `json:"name"`
+// Search Results
+type SearchRecord struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 
+	DefaultPhoto Photo `json:"default_photo"`
 	// only present when `item.Type` equals "Taxa"
-	searchResultItemRecordTaxaData
+	Taxa
 }
 
 type SearchResultItem struct {
-	Type    string                 `json:"type"`
-	Record  searchResultItemRecord `json:"record"`
-	Matches []string               `json:"matches"`
+	Type    string       `json:"type"`
+	Record  SearchRecord `json:"record"`
+	Matches []string     `json:"matches"`
 }
 
 type SearchResult struct {

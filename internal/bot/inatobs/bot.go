@@ -30,7 +30,6 @@ type Bot struct {
 	discord            *dg.Session
 	api                inatapi.Api
 	store              *store.Queries
-	handlersRegistered bool
 	displayedObservers []int64
 }
 
@@ -38,15 +37,14 @@ func New(discord *dg.Session, db *store.Queries, config BotConfig) *Bot {
 	return &Bot{BotConfig: config, discord: discord, api: inatapi.New(), store: db}
 }
 
-func InitFromEnv(d *dg.Session, s *store.Queries) *Bot {
+func InitFromEnv(d *dg.Session, s *store.Queries) (*Bot, error) {
 	var c BotConfig
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("inatobs bot missing config: %v", err)
-		return nil
+		return nil, fmt.Errorf("inatobs bot missing config: %w", err)
 	}
 
-	return New(d, s, c)
+	return New(d, s, c), nil
 }
 
 func (b *Bot) Start() {
@@ -146,7 +144,7 @@ func (b *Bot) Post() {
 			o.UserID,
 		),
 		Embed: &dg.MessageEmbed{
-			Image: &dg.MessageEmbedImage{URL: o.Photos[0].LargeUrl},
+			Image: &dg.MessageEmbedImage{URL: o.Photos[0].MediumUrl},
 			Fields: []*dg.MessageEmbedField{
 				{
 					Name:  "Taxon",

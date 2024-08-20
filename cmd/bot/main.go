@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -25,24 +24,35 @@ type config struct {
 }
 
 type bot interface{ Start() }
+type botInitFunc = func(d *discordgo.Session, s *store.Queries) (bot, error)
 
-func initDB(url string) *store.Queries {
-	conn, err := sql.Open("sqlite3", url)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	store.RunMigrations("sqlite3", conn)
-	return store.New(conn)
+var initFuncs = []botInitFunc{
+	func(d *discordgo.Session, s *store.Queries) (bot, error) {
+		return inatobs.InitFromEnv(d, s)
+	},
+	func(d *discordgo.Session, s *store.Queries) (bot, error) {
+		return inatlookup.InitFromEnv(d)
+	},
+	func(d *discordgo.Session, s *store.Queries) (bot, error) {
+		return thisthat.InitFromEnv(d)
+	},
 }
 
 func main() {
-	var conf config
+	var (
+		conf config
+		bots = make([]bot, 0, 3)
+	)
 
 	godotenv.Load()
 
 	if err := envconfig.Process(context.Background(), &conf); err != nil {
+		log.Fatal(err)
+	}
+
+	db, err := store.Init(conf.DatabaseURL)
+
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -52,21 +62,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db := initDB(conf.DatabaseURL)
+	for _, f := range initFuncs {
+		bot, err := f(discord, db)
 
-	bots := []bot{
-		inatobs.InitFromEnv(discord, db),
-		inatlookup.InitFromEnv(discord),
-		thisthat.InitFromEnv(discord),
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		bots = append(bots, bot)
 	}
 
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("User '%s' connected to discord!", r.User.Username)
 
 		for _, bot := range bots {
-			if bot != nil {
-				bot.Start()
-			}
+			bot.Start()
 		}
 	})
 

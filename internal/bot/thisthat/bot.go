@@ -2,6 +2,7 @@ package thisthat
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 
@@ -17,23 +18,21 @@ type BotConfig struct {
 
 type Bot struct {
 	BotConfig
-	discord            *dg.Session
-	handlersRegistered bool
+	discord *dg.Session
 }
 
 func New(discord *dg.Session, config BotConfig) *Bot {
 	return &Bot{BotConfig: config, discord: discord}
 }
 
-func InitFromEnv(d *dg.Session) *Bot {
+func InitFromEnv(d *dg.Session) (*Bot, error) {
 	var c BotConfig
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("thisthat bot missing config, disabled.: %v", err)
-		return nil
+		return nil, fmt.Errorf("thisthat bot missing config: %w", err)
 	}
 
-	return New(d, c)
+	return New(d, c), nil
 }
 
 func (b *Bot) Start() {
