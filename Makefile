@@ -1,5 +1,5 @@
 GOPATH?=`realpath workspace`
-BIN="./bin/bot"
+BIN=./bin/bot
 CGO_ENABLED=1
 
 # package versions
@@ -7,9 +7,11 @@ AIR_VERSION=v1.49.0
 SQLC_VERSION=v1.27.0
 GOOSE_VERSION=v3.21.1
 
+GOOSE_TAGS=no_postgres no_mysql no_mssql no_redshift no_tidb \
+					 no_clickhouse no_vertica no_ydb
 AIR_TEST := $(shell command -v air 2> /dev/null)
 SQLC_TEST := $(shell command -v sqlc 2> /dev/null)
-GOOSE_TEST := $(shell command -v migrate 2> /dev/null)
+GOOSE_TEST := $(shell command -v goose 2> /dev/null)
 
 .PHONY: dev
 dev: install-builddeps install-builddeps-dev db
@@ -19,11 +21,11 @@ dev: install-builddeps install-builddeps-dev db
 		-build.cmd "make build" \
 		-build.bin "DEBUG=true ./bin/bot" \
 		-build.delay "1000" \
-		-build.exclude_dir 'logs,node_modules,bin' \
+		-build.exclude_dir "logs,node_modules,bin" \
 		-build.exclude_file \
-		  'Dockerfile,docker-compose.yaml,internal/store/queries.sql.go,internal/store/models.go,internal/store/db.go' \
-		-build.exclude_regex '_test.go,.null-ls' \
-		-build.include_ext 'go,md,yaml,sql' \
+		  "Dockerfile,internal/store/queries.sql.go,internal/store/models.go,internal/store/db.go" \
+		-build.exclude_regex "_test.go,.null-ls" \
+		-build.include_ext "go,md,yaml,sql" \
 		-build.log "logs/build-errors.log" \
 		-misc.clean_on_exit "false"
 
@@ -38,20 +40,20 @@ ifndef AIR_TEST
 	go install github.com/cosmtrek/air@${AIR_VERSION}
 endif
 ifndef GOOSE_TEST
-	go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+	go install -tags "${GOOSE_TAGS}" github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 endif
 
 .PHONY: build
 build: install-builddeps clean db vet
-	go build -tags "debug" -o ${BIN} ./cmd/bot/
+	go build -tags "debug ${GOOSE_TAGS}" -o ${BIN} ./cmd/bot/
 
 .PHONY: release
 release: install-builddeps clean db
-	go build -a -tags "release" -ldflags "-s -w" -o ${BIN} ./cmd/bot
+	go build -a -tags "release ${GOOSE_TAGS}" -ldflags "-s -w" -o ${BIN} ./cmd/bot
 
 .PHONY: release-docker
 release-docker: install-builddeps clean db
-	go build -a -tags "release" \
+	go build -a -tags "release ${GOOSE_TAGS}" \
 		-ldflags '-s -w -linkmode external -extldflags "-static"' \
 		-o ${BIN} ./cmd/bot
 
