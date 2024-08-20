@@ -21,24 +21,19 @@ type Bot struct {
 	handlersRegistered bool
 }
 
-func getImageAttachmentCount(attachments []*dg.MessageAttachment) int {
-	if len(attachments) <= 1 {
-		return 0
-	}
-
-	count := 0
-
-	for _, attachment := range attachments {
-		if strings.Contains(attachment.ContentType, "image") {
-			count += 1
-		}
-	}
-
-	return count
-}
-
 func New(discord *dg.Session, config BotConfig) *Bot {
 	return &Bot{BotConfig: config, discord: discord}
+}
+
+func InitFromEnv(d *dg.Session) *Bot {
+	var c BotConfig
+
+	if err := envconfig.Process(context.Background(), &c); err != nil {
+		log.Printf("thisthat bot missing config, disabled.: %v", err)
+		return nil
+	}
+
+	return New(d, c)
 }
 
 func (b *Bot) Start() {
@@ -62,13 +57,18 @@ func (b *Bot) registerHandlers() {
 	})
 }
 
-func InitFromEnvironment(d *dg.Session) *Bot {
-	var c BotConfig
-
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("thisthat bot missing config, disabled.: %v\n", err)
-		return nil
+func getImageAttachmentCount(attachments []*dg.MessageAttachment) int {
+	if len(attachments) <= 1 {
+		return 0
 	}
 
-	return New(d, c)
+	count := 0
+
+	for _, attachment := range attachments {
+		if strings.Contains(attachment.ContentType, "image") {
+			count += 1
+		}
+	}
+
+	return count
 }

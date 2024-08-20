@@ -8,6 +8,9 @@ import (
 
 	dg "github.com/bwmarrin/discordgo"
 	"github.com/sethvargo/go-envconfig"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"adamolsen.dev/buggins/internal/pkg/inatapi"
 )
@@ -28,6 +31,17 @@ func New(discord *dg.Session, config BotConfig) *Bot {
 	return &Bot{BotConfig: config, api: inatapi.New(), discord: discord}
 }
 
+func InitFromEnv(d *dg.Session) *Bot {
+	var c BotConfig
+
+	if err := envconfig.Process(context.Background(), &c); err != nil {
+		log.Printf("inatlookup bot missing config, disabled: %v", err)
+		return nil
+	}
+
+	return New(d, c)
+}
+
 func (b *Bot) Start() {
 	b.registerHandlers()
 	log.Print("Started inatlookup bot")
@@ -38,25 +52,31 @@ func (b *Bot) registerHandlers() {
 		b.CommandPrefix = ","
 	}
 
-	commandRegex := regexp.MustCompile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, b.CommandPrefix))
-	commandHandlers := map[string]commandHandler{
+	re, err := regexp.Compile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, b.CommandPrefix))
+
+	if err != nil {
+		log.Printf("error compiling command handler regex: %v", err)
+		return
+	}
+
+	handlers := map[string]commandHandler{
 		"t": b.lookupTaxa,
 	}
 
 	b.discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
-		matches := commandRegex.FindStringSubmatch(m.Content)
+		matches := re.FindStringSubmatch(m.Content)
 
 		if matches == nil {
 			return
 		}
 
 		command := matches[1]
-		rest := matches[2]
+		content := matches[2]
 
-		handler, ok := commandHandlers[command]
+		handler, ok := handlers[command]
 
 		if ok {
-			handler(d, m, rest)
+			handler(d, m, content)
 		}
 	})
 }
@@ -66,20 +86,29 @@ func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 
 	if err == nil && len(r.Results) > 0 {
 		r := r.Results[0].Record
+		p := message.NewPrinter(language.English)
 
 		b.discord.ChannelMessageSendComplex(m.ChannelID, &dg.MessageSend{
-			Content: fmt.Sprintf(
-				"**[%s (%s)](https://inaturalist.org/taxa/%d)**",
-				r.Name,
-				r.PreferredCommonName,
-				r.ID,
-			),
 			Embed: &dg.MessageEmbed{
-				Image: &dg.MessageEmbedImage{URL: r.DefaultPhoto.MediumUrl},
+				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.SquareUrl},
+				Color:     5763719,
 				Fields: []*dg.MessageEmbedField{
 					{
+						Value: fmt.Sprintf(
+							"**[%s (%s)](https://inaturalist.org/taxa/%d)**",
+							r.Name,
+							r.PreferredCommonName,
+							r.ID,
+						),
+						Inline: true,
+					},
+					{
+						Name:  "Type",
+						Value: cases.Title(language.English, cases.Compact).String(r.Rank),
+					},
+					{
 						Name:  "Observer Count",
-						Value: fmt.Sprintf("%d", r.ObservationCount),
+						Value: p.Sprintf("%d", r.ObservationCount),
 					},
 					{
 						Name:  "iNaturalist Link",
@@ -89,15 +118,4 @@ func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 			},
 		})
 	}
-}
-
-func InitFromEnvironment(d *dg.Session) *Bot {
-	var c BotConfig
-
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		log.Printf("inatlookup bot missing config, disabled: %v\n", err)
-		return nil
-	}
-
-	return New(d, c)
 }

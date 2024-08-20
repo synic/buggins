@@ -6,18 +6,18 @@ type observationPhotos struct {
 }
 
 type observationTaxonName struct {
-	Name *string `json:"name,omitempty"`
+	Name string `json:"name"`
 }
 
 type observationTaxon struct {
-	Name        *string               `json:"name,omitempty"`
-	CommonName  *observationTaxonName `json:"common_name,omitempty"`
-	DefaultName *observationTaxonName `json:"default_name,omitempty"`
+	Name        string               `json:"name"`
+	CommonName  observationTaxonName `json:"common_name"`
+	DefaultName observationTaxonName `json:"default_name"`
 }
 
 type Observation struct {
-	Species  *string             `json:"species_guess,omitempty"`
-	Taxon    *observationTaxon   `json:"taxon,omitempty"`
+	Species  string              `json:"species_guess"`
+	Taxon    observationTaxon    `json:"taxon"`
 	Username string              `json:"user_login"`
 	Photos   []observationPhotos `json:"photos"`
 	ID       int64               `json:"id"`
@@ -26,16 +26,20 @@ type Observation struct {
 
 // Search Results
 type searchResultItemRecordPhoto struct {
+	Url       string `json:"url"`
 	MediumUrl string `json:"medium_url"`
+	SquareUrl string `json:"square_url"`
 }
 
 type searchResultItemRecord struct {
-	DefaultPhoto        *searchResultItemRecordPhoto `json:"default_photo,omitempty"`
-	ID                  int64                        `json:"id"`
-	Name                string                       `json:"name"`
-	Rank                string                       `json:"rank"`
-	ObservationCount    int64                        `json:"observations_count"`
-	PreferredCommonName string                       `json:"preferred_common_name"`
+	DefaultPhoto searchResultItemRecordPhoto `json:"default_photo"`
+	ID           int64                       `json:"id"`
+	Name         string                      `json:"name"`
+
+	// only present when `item.Type` equals "Taxa"
+	Rank                string `json:"rank"`
+	ObservationCount    int64  `json:"observations_count"`
+	PreferredCommonName string `json:"preferred_common_name"`
 }
 
 type SearchResultItem struct {

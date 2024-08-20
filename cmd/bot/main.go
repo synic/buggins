@@ -55,9 +55,9 @@ func main() {
 	db := initDB(conf.DatabaseURL)
 
 	bots := []bot{
-		inatobs.InitFromEnvironment(discord, db),
-		inatlookup.InitFromEnvironment(discord),
-		thisthat.InitFromEnvironment(discord),
+		inatobs.InitFromEnv(discord, db),
+		inatlookup.InitFromEnv(discord),
+		thisthat.InitFromEnv(discord),
 	}
 
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
