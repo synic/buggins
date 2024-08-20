@@ -73,6 +73,10 @@ func main() {
 		bots = append(bots, bot)
 	}
 
+	if len(bots) <= 0 {
+		log.Fatal("no bots to start, bailing")
+	}
+
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("User '%s' connected to discord!", r.User.Username)
 
