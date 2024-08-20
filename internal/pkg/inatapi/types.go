@@ -31,15 +31,19 @@ type searchResultItemRecordPhoto struct {
 	SquareUrl string `json:"square_url"`
 }
 
+type searchResultItemRecordTaxaData struct {
+	Rank                string `json:"rank"`
+	ObservationCount    int64  `json:"observations_count"`
+	PreferredCommonName string `json:"preferred_common_name"`
+}
+
 type searchResultItemRecord struct {
 	DefaultPhoto searchResultItemRecordPhoto `json:"default_photo"`
 	ID           int64                       `json:"id"`
 	Name         string                      `json:"name"`
 
 	// only present when `item.Type` equals "Taxa"
-	Rank                string `json:"rank"`
-	ObservationCount    int64  `json:"observations_count"`
-	PreferredCommonName string `json:"preferred_common_name"`
+	searchResultItemRecordTaxaData
 }
 
 type SearchResultItem struct {

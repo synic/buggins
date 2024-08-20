@@ -17,6 +17,8 @@ import (
 
 type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
 
+var inlineTaxaSearchRe = regexp.MustCompile(`(?m)\.(\w+ ?\w+?)\.`)
+
 type BotConfig struct {
 	CommandPrefix string `env:"INATLOOKUP_COMMAND_PREFIX, default=,"`
 }
@@ -66,17 +68,25 @@ func (b *Bot) registerHandlers() {
 	b.discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
 		matches := re.FindStringSubmatch(m.Content)
 
-		if matches == nil {
-			return
+		if matches != nil {
+			command := matches[1]
+			content := matches[2]
+
+			handler, ok := handlers[command]
+
+			if ok {
+				handler(d, m, content)
+			}
 		}
 
-		command := matches[1]
-		content := matches[2]
+		matches = inlineTaxaSearchRe.FindStringSubmatch(m.Content)
 
-		handler, ok := handlers[command]
+		if matches != nil {
+			handler, ok := handlers["t"]
 
-		if ok {
-			handler(d, m, content)
+			if ok {
+				handler(d, m, matches[1])
+			}
 		}
 	})
 }
@@ -107,7 +117,7 @@ func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 						Value: cases.Title(language.English, cases.Compact).String(r.Rank),
 					},
 					{
-						Name:  "Observer Count",
+						Name:  "Observers",
 						Value: p.Sprintf("%d", r.ObservationCount),
 					},
 					{
