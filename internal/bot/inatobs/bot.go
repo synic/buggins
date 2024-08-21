@@ -222,10 +222,7 @@ func (b *Bot) selectUnseenObservation(
 				items = make([]inatapi.Observation, 0)
 			}
 
-			if ok {
-				items = append(items, o)
-			}
-
+			items = append(items, o)
 			observerMap[o.UserID] = items
 
 			if !slices.Contains(b.displayedObservers, o.UserID) {
