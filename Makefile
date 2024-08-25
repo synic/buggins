@@ -53,11 +53,11 @@ clean:
 
 .PHONY: test
 test:
-	@go test -race ./... | tc
+	go test -race ./... | tc
 
 .PHONY: vet
 vet:
-	@go vet ./...
+	go vet ./...
 
 .PHONY: build-container
 build-container:

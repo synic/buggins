@@ -39,10 +39,7 @@ var initFuncs = []botInitFunc{
 }
 
 func main() {
-	var (
-		conf config
-		bots = make([]bot, 0, 3)
-	)
+	var conf config
 
 	godotenv.Load()
 
@@ -70,19 +67,11 @@ func main() {
 			continue
 		}
 
-		bots = append(bots, bot)
-	}
-
-	if len(bots) <= 0 {
-		log.Fatal("no bots to start, bailing")
+		bot.Start()
 	}
 
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 		log.Printf("User '%s' connected to discord!", r.User.Username)
-
-		for _, bot := range bots {
-			bot.Start()
-		}
 	})
 
 	if err := discord.Open(); err != nil {

@@ -27,11 +27,12 @@ type BotConfig struct {
 
 type Bot struct {
 	BotConfig
-	discord            *dg.Session
-	api                inatapi.Api
-	store              *store.Queries
-	displayedObservers []int64
-	isStarted          bool
+	discord                 *dg.Session
+	api                     inatapi.Api
+	store                   *store.Queries
+	displayedObservers      []int64
+	isStarted               bool
+	slashCommandsRegistered bool
 }
 
 func New(discord *dg.Session, db *store.Queries, config BotConfig) *Bot {
@@ -60,7 +61,9 @@ func (b *Bot) Start() {
 }
 
 func (b *Bot) registerHandlers() {
-	b.registerSlashCommands()
+	b.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+		b.registerSlashCommands()
+	})
 
 	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
 		if i.ChannelID != b.ChannelID {
@@ -82,6 +85,11 @@ func (b *Bot) registerHandlers() {
 }
 
 func (b *Bot) registerSlashCommands() {
+	if b.slashCommandsRegistered {
+		return
+	}
+
+	b.slashCommandsRegistered = true
 	var adminPermissions int64 = discordgo.PermissionManageServer
 	command := discordgo.ApplicationCommand{
 		Name:                     "loadinat",
