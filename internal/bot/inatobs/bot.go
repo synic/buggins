@@ -31,6 +31,7 @@ type Bot struct {
 	api                inatapi.Api
 	store              *store.Queries
 	displayedObservers []int64
+	isStarted          bool
 }
 
 func New(discord *dg.Session, db *store.Queries, config BotConfig) *Bot {
@@ -48,11 +49,14 @@ func InitFromEnv(d *dg.Session, s *store.Queries) (*Bot, error) {
 }
 
 func (b *Bot) Start() {
-	b.registerHandlers()
-	c := cron.New()
-	c.AddFunc(b.CronPattern, b.Post)
-	c.Start()
-	log.Printf("Started inatobs bot with cron pattern '%s'...", b.CronPattern)
+	if !b.isStarted {
+		b.isStarted = true
+		b.registerHandlers()
+		c := cron.New()
+		c.AddFunc(b.CronPattern, b.Post)
+		c.Start()
+		log.Printf("Started inatobs bot with cron pattern '%s'...", b.CronPattern)
+	}
 }
 
 func (b *Bot) registerHandlers() {

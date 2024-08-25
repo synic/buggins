@@ -18,7 +18,8 @@ type BotConfig struct {
 
 type Bot struct {
 	BotConfig
-	discord *dg.Session
+	discord   *dg.Session
+	isStarted bool
 }
 
 func New(discord *dg.Session, config BotConfig) *Bot {
@@ -36,8 +37,11 @@ func InitFromEnv(d *dg.Session) (*Bot, error) {
 }
 
 func (b *Bot) Start() {
-	log.Println("Started thisthat bot...")
-	b.registerHandlers()
+	if !b.isStarted {
+		b.isStarted = true
+		log.Println("Started thisthat bot...")
+		b.registerHandlers()
+	}
 }
 
 func (b *Bot) registerHandlers() {

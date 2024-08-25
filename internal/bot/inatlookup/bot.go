@@ -25,8 +25,9 @@ type BotConfig struct {
 
 type Bot struct {
 	BotConfig
-	discord *dg.Session
-	api     inatapi.Api
+	discord   *dg.Session
+	api       inatapi.Api
+	isStarted bool
 }
 
 func New(discord *dg.Session, config BotConfig) *Bot {
@@ -44,8 +45,11 @@ func InitFromEnv(d *dg.Session) (*Bot, error) {
 }
 
 func (b *Bot) Start() {
-	b.registerHandlers()
-	log.Print("Started inatlookup bot")
+	if !b.isStarted {
+		b.isStarted = true
+		b.registerHandlers()
+		log.Print("Started inatlookup bot")
+	}
 }
 
 func (b *Bot) registerHandlers() {
