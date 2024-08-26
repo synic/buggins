@@ -51,19 +51,24 @@ func InitFromEnv(d *dg.Session, s *store.Queries) (*Bot, error) {
 
 func (b *Bot) Start() {
 	if !b.isStarted {
+		log.Printf("Started inatobs bot with cron pattern '%s'", b.CronPattern)
 		b.isStarted = true
 		b.registerHandlers()
 		c := cron.New()
 		c.AddFunc(b.CronPattern, b.Post)
 		c.Start()
-		log.Printf("Started inatobs bot with cron pattern '%s'...", b.CronPattern)
 	}
 }
 
 func (b *Bot) registerHandlers() {
-	b.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+	if b.discord.DataReady {
 		b.registerSlashCommands()
-	})
+	} else {
+		b.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+			log.Println("Discord connection detected, registering slash commands for inatobs")
+			b.registerSlashCommands()
+		})
+	}
 
 	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
 		if i.ChannelID != b.ChannelID {
@@ -85,6 +90,11 @@ func (b *Bot) registerHandlers() {
 }
 
 func (b *Bot) registerSlashCommands() {
+	if !b.discord.DataReady {
+		fmt.Println("Cannot register inatobs slash commands, websocket not yet connected")
+		return
+	}
+
 	if b.slashCommandsRegistered {
 		return
 	}
@@ -102,6 +112,8 @@ func (b *Bot) registerSlashCommands() {
 	if err != nil {
 		log.Printf("error creating /loadinat command: %v", err)
 	}
+
+	log.Println("inatobs slash commands registered")
 }
 
 func (b *Bot) findUnseenObservation() (inatapi.Observation, error) {

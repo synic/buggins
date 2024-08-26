@@ -39,7 +39,7 @@ func InitFromEnv(d *dg.Session) (*Bot, error) {
 func (b *Bot) Start() {
 	if !b.isStarted {
 		b.isStarted = true
-		log.Println("Started thisthat bot...")
+		log.Println("Started thisthat bot")
 		b.registerHandlers()
 	}
 }
