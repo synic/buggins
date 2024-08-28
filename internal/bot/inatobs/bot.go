@@ -107,7 +107,7 @@ func (b *Bot) registerSlashCommands() {
 		DefaultMemberPermissions: &adminPermissions,
 	}
 
-	_, err := b.discord.ApplicationCommandCreate(b.discord.State.User.ID, "", &command)
+	_, err := b.discord.ApplicationCommandCreate(b.discord.State.Application.ID, "", &command)
 
 	if err != nil {
 		log.Printf("error creating /loadinat command: %v", err)

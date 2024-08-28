@@ -17,7 +17,7 @@ import (
 
 type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
 
-var inlineTaxaSearchRe = regexp.MustCompile(`(?m)\.(\w+ ?\w+?)\.`)
+var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
 type BotConfig struct {
 	CommandPrefix string `env:"INATLOOKUP_COMMAND_PREFIX, default=,"`
