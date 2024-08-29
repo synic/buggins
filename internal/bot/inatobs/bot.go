@@ -72,7 +72,12 @@ func (b *Bot) registerHandlers() {
 
 	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
 		if i.ChannelID != b.ChannelID {
-			return
+			d.InteractionRespond(i.Interaction, &dg.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Wrong channel, bub.",
+				},
+			})
 		}
 
 		if i.ApplicationCommandData().Name == "loadinat" {
