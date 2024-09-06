@@ -12,44 +12,37 @@ SQLC_TEST := $(shell command -v sqlc 2> /dev/null)
 GOOSE_TEST := $(shell command -v goose 2> /dev/null)
 
 .PHONY: dev
-dev: install-builddeps install-builddeps-dev
+dev: install-builddeps
 	@DEBUG=true air
 
-.PHONY: install-builddeps
-install-builddeps:
-ifndef SQLC_TEST
-	go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
-endif
-
-.PHONY: install-builddeps-dev
-install-builddeps-dev:
+.PHONY: install-devdeps
+install-devdeps:
 ifndef AIR_TEST
 	go install github.com/cosmtrek/air@${AIR_VERSION}
 endif
 ifndef GOOSE_TEST
 	go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 endif
+ifndef SQLC_TEST
+	go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
+endif
 
 .PHONY: build
-build: install-builddeps clean
+build:
 	go build -tags "debug" -o ${BIN} ./
 
 .PHONY: release
-release: install-builddeps clean
+release:
 	go build -a -tags "release" -ldflags "-s -w" -o ${BIN} ./
 
 .PHONY: release-docker
-release-docker: install-builddeps clean
+release-docker:
 	go build -a -tags "release" \
 		-ldflags '-s -w -linkmode external -extldflags "-static"' -o ${BIN} .
 
 .PHONY: codegen
 codegen:
 	go generate ./...
-
-.PHONY: clean
-clean:
-	@rm ${BIN} 2> /dev/null || true
 
 .PHONY: test
 test:
