@@ -3,7 +3,7 @@ tmp_dir = ".tmp"
 
 [build]
   args_bin = []
-  bin = "./bin/bot"
+  bin = "./bin/bot start"
   cmd = "make build"
   delay = 1000
   exclude_dir = ["logs", "bin"]
