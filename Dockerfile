@@ -17,4 +17,4 @@ WORKDIR /
 COPY --from=build-base /app/bin/bot /bot
 COPY --from=build-base /app/data /data
 
-CMD ["/bot start"]
+CMD ["/bot", "start"]
