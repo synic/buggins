@@ -41,8 +41,7 @@ release: install-builddeps clean
 .PHONY: release-docker
 release-docker: install-builddeps clean
 	go build -a -tags "release" \
-		-ldflags '-s -w -linkmode external -extldflags "-static"' \
-		-o ${BIN} ./cmd/bot
+		-ldflags '-s -w -linkmode external -extldflags "-static"' -o ${BIN} .
 
 .PHONY: codegen
 codegen:
