@@ -10,9 +10,6 @@ var rootCmd = &cobra.Command{
 	Use:   "buggins",
 	Short: "Discord bot for the Macromania server",
 	Long:  "Discord bot for the Macromania server",
-	Run: func(cmd *cobra.Command, args []string) {
-		startBot()
-	},
 }
 
 func Execute() {
