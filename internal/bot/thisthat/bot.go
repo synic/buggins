@@ -46,7 +46,7 @@ func (b *Bot) Start() {
 
 func (b *Bot) registerHandlers() {
 	b.discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
-		if m.ChannelID != b.ChannelID {
+		if m.ChannelID != b.ChannelID || m.Author.ID == b.discord.State.User.ID {
 			return
 		}
 

@@ -199,10 +199,12 @@ func (b *Bot) Post() {
 		),
 		Files: files,
 		Embed: &dg.MessageEmbed{
+			Color: 2123412,
 			Fields: []*dg.MessageEmbedField{
 				{
-					Name:  "Taxon",
-					Value: fmt.Sprintf("%s (%s)", taxonName, commonName),
+					Name:   "Taxon",
+					Value:  fmt.Sprintf("%s (%s)", taxonName, commonName),
+					Inline: true,
 				},
 				{
 					Name:  "iNaturalist Link",

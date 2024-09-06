@@ -24,9 +24,9 @@ type BotConfig struct {
 }
 
 type Bot struct {
+	api     inatapi.Api
+	discord *dg.Session
 	BotConfig
-	discord   *dg.Session
-	api       inatapi.Api
 	isStarted bool
 }
 
