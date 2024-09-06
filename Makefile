@@ -12,7 +12,7 @@ SQLC_TEST := $(shell command -v sqlc 2> /dev/null)
 GOOSE_TEST := $(shell command -v goose 2> /dev/null)
 
 .PHONY: dev
-dev: install-builddeps install-builddeps-dev db
+dev: install-builddeps install-builddeps-dev
 	@DEBUG=true air
 
 .PHONY: install-builddeps

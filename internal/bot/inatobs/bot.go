@@ -7,6 +7,7 @@ import (
 	"log"
 	"maps"
 	"math/rand/v2"
+	"net/http"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -165,10 +166,34 @@ func (b *Bot) Post() {
 		),
 	})
 
+	photos := o.Photos
+
+	if len(photos) > 5 {
+		photos = photos[:5]
+	}
+
+	files := make([]*dg.File, 0, len(photos))
+
+	for _, photo := range photos {
+		r, err := http.Get(photo.MediumURL)
+
+		if err != nil {
+			log.Printf("unable to retrieve data for photo `%s`: %v", photo.MediumURL, err)
+			continue
+		}
+
+		defer r.Body.Close()
+		files = append(files, &dg.File{
+			Name:        photo.MediumURL,
+			ContentType: "image/jpeg",
+			Reader:      r.Body,
+		})
+	}
+
 	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
+		Files: files,
 		Embed: &dg.MessageEmbed{
 			URL:   fmt.Sprintf("https://inaturalist.org/observations/%d", o.ID),
-			Image: &dg.MessageEmbedImage{URL: o.Photos[0].MediumURL},
 			Title: fmt.Sprintf("%s has spotted something new!", o.Username),
 			Author: &dg.MessageEmbedAuthor{
 				Name:    o.User.Username,

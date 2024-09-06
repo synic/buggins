@@ -27,8 +27,3 @@
 # go workspaces
 /go.work.sum
 /go.work
-
-# generated database files
-/internal/store/db.go
-/internal/store/models.go
-/internal/store/queries.sql.go

@@ -7,12 +7,7 @@ tmp_dir = ".tmp"
   cmd = "make build"
   delay = 1000
   exclude_dir = ["logs", "bin"]
-  exclude_file = [
-    "Dockerfile",
-    "internal/store/queries.sql.go",
-    "internal/store/models.go",
-    "internal/store/db.go"
-  ]
+  exclude_file = ["Dockerfile"]
   exclude_regex = ["_test.go", ".null-ls"]
   exclude_unchanged = false
   follow_symlink = false
