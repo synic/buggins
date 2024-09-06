@@ -193,7 +193,7 @@ func (b *Bot) Post() {
 
 	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
 		Content: fmt.Sprintf(
-			"**[%s](https://inaturalist.org/people/%d) has spotted something new!**",
+			"**[%s](https://inaturalist.org/people/%d) has spotted something new!**\n\n",
 			o.Username,
 			o.UserID,
 		),
