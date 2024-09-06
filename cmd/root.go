@@ -9,7 +9,6 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "buggins",
 	Short: "Discord bot for the Macromania server",
-	Long:  "Discord bot for the Macromania server",
 }
 
 func Execute() {

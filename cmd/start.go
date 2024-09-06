@@ -71,7 +71,6 @@ func startBot() {
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the bot",
-	Long:  "Start the bot and connect to discord",
 	Run: func(cmd *cobra.Command, args []string) {
 		startBot()
 	},
