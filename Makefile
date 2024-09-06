@@ -22,6 +22,7 @@ ifndef SQLC_TEST
 endif
 
 .PHONY: install-builddeps-dev
+install-builddeps-dev:
 ifndef AIR_TEST
 	go install github.com/cosmtrek/air@${AIR_VERSION}
 endif

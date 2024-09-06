@@ -7,6 +7,7 @@ import (
 	"log"
 	"maps"
 	"math/rand/v2"
+	"net/http"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -26,11 +27,11 @@ type BotConfig struct {
 }
 
 type Bot struct {
+	api                inatapi.Api
+	discord            *dg.Session
+	store              *store.Queries
+	displayedObservers []int64
 	BotConfig
-	discord                 *dg.Session
-	api                     inatapi.Api
-	store                   *store.Queries
-	displayedObservers      []int64
 	isStarted               bool
 	slashCommandsRegistered bool
 }
@@ -166,14 +167,38 @@ func (b *Bot) Post() {
 		}
 	}
 
+	photos := o.Photos
+
+	if len(photos) > 10 {
+		photos = photos[:10]
+	}
+
+	files := make([]*dg.File, 0, len(photos))
+
+	for _, photo := range photos {
+		r, err := http.Get(photo.MediumUrl)
+
+		if err != nil {
+			log.Printf("unable to retrieve data for photo `%s`: %v", photo.MediumUrl, err)
+			continue
+		}
+
+		defer r.Body.Close()
+		files = append(files, &dg.File{
+			Name:        photo.MediumUrl,
+			ContentType: "image/jpeg",
+			Reader:      r.Body,
+		})
+	}
+
 	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
 		Content: fmt.Sprintf(
 			"**[%s](https://inaturalist.org/people/%d) has spotted something new!**",
 			o.Username,
 			o.UserID,
 		),
+		Files: files,
 		Embed: &dg.MessageEmbed{
-			Image: &dg.MessageEmbedImage{URL: o.Photos[0].MediumUrl},
 			Fields: []*dg.MessageEmbedField{
 				{
 					Name:  "Taxon",
@@ -223,7 +248,7 @@ func (b *Bot) selectUnseenObservation(
 		observationIds     []int64
 		unseen             []inatapi.Observation
 		seenIds            []int64
-		observerMap        map[int64][]inatapi.Observation = make(map[int64][]inatapi.Observation)
+		observerMap        = make(map[int64][]inatapi.Observation)
 		potentialObservers []int64
 	)
 
