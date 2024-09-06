@@ -31,22 +31,22 @@ ifndef GOOSE_TEST
 endif
 
 .PHONY: build
-build: install-builddeps clean db vet
-	go build -tags "debug" -o ${BIN} ./cmd/bot/
+build: install-builddeps clean
+	go build -tags "debug" -o ${BIN} ./
 
 .PHONY: release
-release: install-builddeps clean db
-	go build -a -tags "release" -ldflags "-s -w" -o ${BIN} ./cmd/bot
+release: install-builddeps clean
+	go build -a -tags "release" -ldflags "-s -w" -o ${BIN} ./
 
 .PHONY: release-docker
-release-docker: install-builddeps clean db
+release-docker: install-builddeps clean
 	go build -a -tags "release" \
 		-ldflags '-s -w -linkmode external -extldflags "-static"' \
 		-o ${BIN} ./cmd/bot
 
-.PHONY: db
-db:
-	sqlc generate
+.PHONY: codegen
+codegen:
+	go generate ./...
 
 .PHONY: clean
 clean:

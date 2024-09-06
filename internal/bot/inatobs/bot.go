@@ -7,7 +7,6 @@ import (
 	"log"
 	"maps"
 	"math/rand/v2"
-	"net/http"
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
@@ -15,8 +14,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/sethvargo/go-envconfig"
 
-	"adamolsen.dev/buggins/internal/pkg/inatapi"
-	"adamolsen.dev/buggins/internal/store"
+	"github.com/synic/buggins/internal/pkg/inatapi"
+	"github.com/synic/buggins/internal/store"
 )
 
 type BotConfig struct {
@@ -151,73 +150,33 @@ func (b *Bot) Post() {
 		return
 	}
 
-	taxonName := "unknown"
-	commonName := "unknown"
-	taxon := o.Taxon
+	taxonName, commonName := o.GetTaxonNames()
 
-	if taxon.Name != "" {
-		taxonName = taxon.Name
-
-		if taxon.CommonName.Name != "" {
-			commonName = taxon.CommonName.Name
-		} else if taxon.DefaultName.Name != "" {
-			commonName = taxon.DefaultName.Name
-		} else if o.Species != "" {
-			commonName = o.Species
-		}
-	}
-
-	photos := o.Photos
-
-	if len(photos) > 10 {
-		photos = photos[:10]
-	}
-
-	files := make([]*dg.File, 0, len(photos))
-
-	for _, photo := range photos {
-		r, err := http.Get(photo.MediumUrl)
-
-		if err != nil {
-			log.Printf("unable to retrieve data for photo `%s`: %v", photo.MediumUrl, err)
-			continue
-		}
-
-		defer r.Body.Close()
-		files = append(files, &dg.File{
-			Name:        photo.MediumUrl,
-			ContentType: "image/jpeg",
-			Reader:      r.Body,
-		})
-	}
+	fields := make([]*dg.MessageEmbedField, 0)
+	fields = append(fields, &dg.MessageEmbedField{
+		Name:  "Taxon",
+		Value: fmt.Sprintf("%s (%s)", taxonName, commonName),
+	})
+	fields = append(fields, &dg.MessageEmbedField{
+		Name: "Our community iNaturalist Project",
+		Value: fmt.Sprintf(
+			"https://inaturalist.org/projects/%s",
+			b.ProjectID,
+		),
+	})
 
 	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
-		Content: fmt.Sprintf(
-			"**[%s](https://inaturalist.org/people/%d) has spotted something new!**\n\n",
-			o.Username,
-			o.UserID,
-		),
-		Files: files,
 		Embed: &dg.MessageEmbed{
-			Color: 2123412,
-			Fields: []*dg.MessageEmbedField{
-				{
-					Name:   "Taxon",
-					Value:  fmt.Sprintf("%s (%s)", taxonName, commonName),
-					Inline: true,
-				},
-				{
-					Name:  "iNaturalist Link",
-					Value: fmt.Sprintf("https://inaturalist.org/observations/%d", o.ID),
-				},
-				{
-					Name: "Our community iNaturalist Project",
-					Value: fmt.Sprintf(
-						"https://inaturalist.org/projects/%s",
-						b.ProjectID,
-					),
-				},
+			URL:   fmt.Sprintf("https://inaturalist.org/observations/%d", o.ID),
+			Image: &dg.MessageEmbedImage{URL: o.Photos[0].MediumURL},
+			Title: fmt.Sprintf("%s has spotted something new!", o.Username),
+			Author: &dg.MessageEmbedAuthor{
+				Name:    o.User.Username,
+				URL:     fmt.Sprintf("https://inaturalist.org/people/%d", o.UserID),
+				IconURL: o.User.UserIconURL,
 			},
+			Color:  2123412,
+			Fields: fields,
 		},
 	})
 

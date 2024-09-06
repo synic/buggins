@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -8,43 +8,17 @@ import (
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/sethvargo/go-envconfig"
+	"github.com/spf13/cobra"
 
-	"adamolsen.dev/buggins/internal/bot/inatlookup"
-	"adamolsen.dev/buggins/internal/bot/inatobs"
-	"adamolsen.dev/buggins/internal/bot/thisthat"
-	"adamolsen.dev/buggins/internal/store"
+	"github.com/synic/buggins/internal/store"
 )
 
-type config struct {
-	DiscordToken string `env:"DISCORD_TOKEN, required"`
-	DatabaseURL  string `env:"DATABASE_URL, default=./data/database.sqlite"`
-}
-
-type bot interface{ Start() }
-type botInitFunc = func(d *discordgo.Session, s *store.Queries) (bot, error)
-
-var initFuncs = []botInitFunc{
-	func(d *discordgo.Session, s *store.Queries) (bot, error) {
-		return inatobs.InitFromEnv(d, s)
-	},
-	func(d *discordgo.Session, s *store.Queries) (bot, error) {
-		return inatlookup.InitFromEnv(d)
-	},
-	func(d *discordgo.Session, s *store.Queries) (bot, error) {
-		return thisthat.InitFromEnv(d)
-	},
-}
-
-func main() {
+func startBot() {
 	var (
 		conf config
 		bots []bot = make([]bot, 0, 3)
 	)
-
-	godotenv.Load()
 
 	if err := envconfig.Process(context.Background(), &conf); err != nil {
 		log.Fatal(err)
@@ -92,4 +66,17 @@ func main() {
 	if err := discord.Close(); err != nil {
 		log.Printf("could not close session gracefully: %s", err)
 	}
+}
+
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the bot",
+	Long:  "Start the bot and connect to discord",
+	Run: func(cmd *cobra.Command, args []string) {
+		startBot()
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(startCmd)
 }

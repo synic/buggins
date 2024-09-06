@@ -12,7 +12,7 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"adamolsen.dev/buggins/internal/pkg/inatapi"
+	"github.com/synic/buggins/internal/pkg/inatapi"
 )
 
 type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
@@ -103,7 +103,7 @@ func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 
 		b.discord.ChannelMessageSendComplex(m.ChannelID, &dg.MessageSend{
 			Embed: &dg.MessageEmbed{
-				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumUrl},
+				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumURL},
 				Color:     5763719,
 				Fields: []*dg.MessageEmbedField{
 					{
