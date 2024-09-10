@@ -15,7 +15,7 @@ import (
 
 type BotConfig struct {
 	ChannelID             string `env:"FEATURED_CHANNEL_ID, required"`
-	RequiredReactionCount int    `env:"FEATURED_REACTION_COUNT, default=8"`
+	RequiredReactionCount int    `env:"FEATURED_REACTION_COUNT, default=6"`
 }
 
 type Bot struct {
@@ -59,10 +59,10 @@ func (b *Bot) registerHandlers() {
 			log.Printf("error fetching message ID `%s`: %v", r.MessageID, err)
 		}
 
+		shouldBeFeatured := hasEnoughReactions(m.Reactions, b.RequiredReactionCount)
 		imgCount := getImageAttachmentCount(m.Attachments)
-		reactionCount := getReactionCount(m.Reactions)
 
-		if imgCount > 0 && reactionCount >= b.RequiredReactionCount {
+		if imgCount > 0 && shouldBeFeatured {
 			isFeatured, err := b.db.IsMessageFeatured(
 				context.Background(),
 				store.IsMessageFeaturedParams{
@@ -157,7 +157,7 @@ func (b *Bot) registerHandlers() {
 }
 
 func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
-	if len(attachments) <= 1 {
+	if len(attachments) < 1 {
 		return 0
 	}
 
@@ -172,15 +172,17 @@ func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	return count
 }
 
-func getReactionCount(reactions []*discordgo.MessageReactions) int {
-	count := 0
+func hasEnoughReactions(reactions []*discordgo.MessageReactions, enough int) bool {
 
 	for _, reaction := range reactions {
 		if reaction.Me {
 			continue
 		}
-		count += reaction.Count
+
+		if reaction.Count >= enough {
+			return true
+		}
 	}
 
-	return count
+	return false
 }
