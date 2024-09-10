@@ -4,6 +4,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/synic/buggins/internal/bot/featured"
 	"github.com/synic/buggins/internal/bot/inatlookup"
 	"github.com/synic/buggins/internal/bot/inatobs"
 	"github.com/synic/buggins/internal/bot/thisthat"
@@ -27,5 +28,8 @@ var initFuncs = []botInitFunc{
 	},
 	func(d *discordgo.Session, s *store.Queries) (bot, error) {
 		return thisthat.InitFromEnv(d)
+	},
+	func(d *discordgo.Session, s *store.Queries) (bot, error) {
+		return featured.InitFromEnv(d, s)
 	},
 }

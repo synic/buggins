@@ -12,7 +12,7 @@ import (
 var EmbeddedMigrations embed.FS
 var runMigrations = false
 
-func RunMigrations(dialect string, db *sql.DB) {
+func MaybeRunMigrations(dialect string, db *sql.DB) {
 	if !runMigrations {
 		return
 	}

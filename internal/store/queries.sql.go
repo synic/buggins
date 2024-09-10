@@ -66,3 +66,53 @@ func (q *Queries) FindObservationsByIds(ctx context.Context, ids []int64) ([]See
 	}
 	return items, nil
 }
+
+const isMessageFeatured = `-- name: IsMessageFeatured :one
+select
+  exists (
+    select
+      1
+    from
+      featured_message
+    where
+      channel_id = ?
+      and message_id = ?
+    limit 1)
+`
+
+type IsMessageFeaturedParams struct {
+	ChannelID string `json:"channel_id"`
+	MessageID string `json:"message_id"`
+}
+
+func (q *Queries) IsMessageFeatured(ctx context.Context, arg IsMessageFeaturedParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, isMessageFeatured, arg.ChannelID, arg.MessageID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const saveFeaturedMessage = `-- name: SaveFeaturedMessage :one
+insert
+  or ignore into featured_message (message_id, channel_id)
+    values (?, ?)
+  returning
+    channel_id, message_id, created_at, updated_at
+`
+
+type SaveFeaturedMessageParams struct {
+	MessageID string `json:"message_id"`
+	ChannelID string `json:"channel_id"`
+}
+
+func (q *Queries) SaveFeaturedMessage(ctx context.Context, arg SaveFeaturedMessageParams) (FeaturedMessage, error) {
+	row := q.db.QueryRowContext(ctx, saveFeaturedMessage, arg.MessageID, arg.ChannelID)
+	var i FeaturedMessage
+	err := row.Scan(
+		&i.ChannelID,
+		&i.MessageID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

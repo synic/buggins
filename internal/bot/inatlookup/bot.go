@@ -12,7 +12,7 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/synic/buggins/internal/pkg/inatapi"
+	"github.com/synic/buggins/internal/inatapi"
 )
 
 type commandHandler = func(*dg.Session, *dg.MessageCreate, string)

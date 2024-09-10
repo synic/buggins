@@ -15,7 +15,7 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/sethvargo/go-envconfig"
 
-	"github.com/synic/buggins/internal/pkg/inatapi"
+	"github.com/synic/buggins/internal/inatapi"
 	"github.com/synic/buggins/internal/store"
 )
 

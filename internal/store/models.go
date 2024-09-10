@@ -8,6 +8,13 @@ import (
 	"time"
 )
 
+type FeaturedMessage struct {
+	ChannelID string    `json:"channel_id"`
+	MessageID string    `json:"message_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type SeenObservation struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`

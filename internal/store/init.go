@@ -11,6 +11,6 @@ func Init(url string) (*Queries, error) {
 		return nil, err
 	}
 
-	RunMigrations("sqlite3", conn)
+	MaybeRunMigrations("sqlite3", conn)
 	return New(conn), nil
 }
