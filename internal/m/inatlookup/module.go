@@ -8,51 +8,58 @@ import (
 
 	dg "github.com/bwmarrin/discordgo"
 	"github.com/sethvargo/go-envconfig"
+	"go.uber.org/fx"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/synic/buggins/internal/inatapi"
+	"github.com/synic/buggins/internal/m"
+	"github.com/synic/buggins/internal/pkg/inat"
 )
 
 type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
 
 var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
-type BotConfig struct {
+type Config struct {
 	CommandPrefix string `env:"INATLOOKUP_COMMAND_PREFIX, default=,"`
 }
 
-type Bot struct {
-	api     inatapi.Api
-	discord *dg.Session
-	BotConfig
+type Module struct {
+	Config
+	api       inat.Api
+	discord   *dg.Session
 	isStarted bool
 }
 
-func New(discord *dg.Session, config BotConfig) *Bot {
-	return &Bot{BotConfig: config, api: inatapi.New(), discord: discord}
+type providerResult struct {
+	fx.Out
+	Module m.Module `group:"modules"`
 }
 
-func InitFromEnv(d *dg.Session) (*Bot, error) {
-	var c BotConfig
+func New(discord *dg.Session, config Config) *Module {
+	return &Module{Config: config, api: inat.New(), discord: discord}
+}
+
+func ProviderFromEnv(d *dg.Session) (providerResult, error) {
+	var c Config
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return nil, fmt.Errorf("inatlookup bot missing config: %v", err)
+		return providerResult{}, fmt.Errorf("inatlookup module missing config: %w", err)
 	}
 
-	return New(d, c), nil
+	return providerResult{Module: New(d, c)}, nil
 }
 
-func (b *Bot) Start() {
+func (b *Module) Start() {
 	if !b.isStarted {
 		b.isStarted = true
 		b.registerHandlers()
-		log.Print("Started inatlookup bot")
+		log.Print("Started inatlookup module")
 	}
 }
 
-func (b *Bot) registerHandlers() {
+func (b *Module) registerHandlers() {
 	if b.CommandPrefix == "" {
 		b.CommandPrefix = ","
 	}
@@ -94,7 +101,7 @@ func (b *Bot) registerHandlers() {
 	})
 }
 
-func (b *Bot) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
+func (b *Module) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
 	r, err := b.api.Search([]string{"taxa"}, content)
 
 	if err == nil && len(r.Results) > 0 {

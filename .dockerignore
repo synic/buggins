@@ -23,3 +23,6 @@
 # go workspaces
 /go.work.sum
 /go.work
+
+# configs
+/config/*

@@ -1,81 +1,43 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"os"
-	"os/signal"
-
-	"github.com/bwmarrin/discordgo"
-	"github.com/sethvargo/go-envconfig"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
-	"github.com/synic/buggins/internal/store"
+	"github.com/synic/buggins/internal/conf"
+	"github.com/synic/buggins/internal/m/featured"
+	"github.com/synic/buggins/internal/m/inatlookup"
+	"github.com/synic/buggins/internal/m/inatobs"
+	"github.com/synic/buggins/internal/m/thisthat"
 )
 
-func startBot() {
-	var (
-		conf config
-		bots []bot = make([]bot, 0, 3)
+func getProviders(configFile string) fx.Option {
+	return fx.Options(
+		fx.Provide(conf.ProvideFromFile(configFile)),
+		fx.Provide(newDiscordSession),
+		fx.Provide(newDatabase),
+		fx.Provide(featured.Provider),
+		fx.Provide(inatobs.ProviderFromEnv),
+		fx.Provide(inatlookup.ProviderFromEnv),
+		fx.Provide(thisthat.ProviderFromEnv),
+		fx.Provide(newBot),
 	)
-
-	if err := envconfig.Process(context.Background(), &conf); err != nil {
-		log.Fatal(err)
-	}
-
-	db, err := store.Init(conf.DatabaseURL)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	discord, err := discordgo.New(fmt.Sprintf("Bot %s", conf.DiscordToken))
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, f := range initFuncs {
-		bot, err := f(discord, db)
-
-		if err != nil {
-			log.Printf("error starting bot: %v", err)
-			continue
-		}
-
-		bots = append(bots, bot)
-	}
-
-	discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-		log.Printf("User '%s' connected to discord!", r.User.Username)
-
-		for _, bot := range bots {
-			bot.Start()
-		}
-	})
-
-	if err := discord.Open(); err != nil {
-		log.Fatal(err)
-	}
-
-	sigch := make(chan os.Signal, 1)
-	signal.Notify(sigch, os.Interrupt)
-	<-sigch
-
-	if err := discord.Close(); err != nil {
-		log.Printf("could not close session gracefully: %s", err)
-	}
 }
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the bot",
+	Short: "Start buggins bot",
 	Run: func(cmd *cobra.Command, args []string) {
-		startBot()
+		configFile, _ := cmd.Flags().GetString("config")
+		fx.New(
+			getProviders(configFile),
+			fx.Invoke(func(bot) {}),
+		).Run()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	startCmd.Flags().StringP("config", "c", "", "configuration file location")
+	startCmd.MarkFlagRequired("config")
 }

@@ -1,4 +1,4 @@
-package inatapi
+package inat
 
 import (
 	"encoding/json"

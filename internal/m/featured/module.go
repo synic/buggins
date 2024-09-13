@@ -2,54 +2,89 @@ package featured
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/sethvargo/go-envconfig"
+	"go.uber.org/fx"
 
+	"github.com/synic/buggins/internal/conf"
+	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/store"
 )
 
-type BotConfig struct {
-	ChannelID             string `env:"FEATURED_CHANNEL_ID, required"`
-	RequiredReactionCount int    `env:"FEATURED_REACTION_COUNT, default=6"`
+type GuildOptions struct {
+	Name                  string `mapstructure:"name"`
+	ID                    int    `mapstructure:"id"`
+	ChannelID             int    `mapstructure:"channel_id"`
+	RequiredReactionCount int    `mapstructure:"reaction_count"`
 }
 
-type Bot struct {
-	discord *discordgo.Session
-	db      *store.Queries
-	BotConfig
+type Options struct {
+	Guilds []GuildOptions `mapstructure:"guilds"`
+}
+
+type providerResult struct {
+	fx.Out
+	Module m.Module `group:"modules"`
+}
+
+func Provider(
+	c conf.Config,
+	discord *discordgo.Session,
+	db *store.Queries,
+) (providerResult, error) {
+	options, err := conf.GetConfig[Options](c, "featured")
+
+	if err != nil {
+		return providerResult{}, err
+	}
+
+	return providerResult{Module: New(discord, db, options)}, nil
+}
+
+type Module struct {
+	Options
+	discord   *discordgo.Session
+	db        *store.Queries
 	isStarted bool
 }
 
-func New(discord *discordgo.Session, db *store.Queries, config BotConfig) *Bot {
-	return &Bot{BotConfig: config, discord: discord, db: db}
+func New(discord *discordgo.Session, db *store.Queries, config Options) *Module {
+	return &Module{Options: config, discord: discord, db: db}
 }
 
-func InitFromEnv(discord *discordgo.Session, db *store.Queries) (*Bot, error) {
-	var c BotConfig
-
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return nil, fmt.Errorf("inatobs bot missing config: %w", err)
-	}
-
-	return New(discord, db, c), nil
-}
-
-func (b *Bot) Start() {
+func (b *Module) Start() {
 	if !b.isStarted {
 		b.isStarted = true
 		b.registerHandlers()
-		log.Println("Started featured bot")
+		log.Println("Started featured module")
 	}
 }
 
-func (b *Bot) registerHandlers() {
+func (b *Module) getGuildOptions(guildID string) (GuildOptions, error) {
+	for _, o := range b.Guilds {
+		if strconv.Itoa(o.ID) == guildID {
+			return o, nil
+		}
+	}
+
+	return GuildOptions{}, errors.New("guild not configured")
+}
+
+func (b *Module) registerHandlers() {
 	b.discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
 		if !b.isStarted {
+			return
+		}
+
+		options, err := b.getGuildOptions(r.GuildID)
+
+		if err != nil || strconv.Itoa(options.ChannelID) != r.ChannelID {
 			return
 		}
 
@@ -57,9 +92,10 @@ func (b *Bot) registerHandlers() {
 
 		if err != nil {
 			log.Printf("error fetching message ID `%s`: %v", r.MessageID, err)
+			return
 		}
 
-		shouldBeFeatured := hasEnoughReactions(m.Reactions, b.RequiredReactionCount)
+		shouldBeFeatured := getWinningReaction(m.Reactions, options.RequiredReactionCount)
 		imgCount := getImageAttachmentCount(m.Attachments)
 
 		if imgCount > 0 && shouldBeFeatured {
@@ -131,7 +167,7 @@ func (b *Bot) registerHandlers() {
 			}
 
 			b.discord.ChannelMessageSendComplex(
-				b.ChannelID,
+				strconv.Itoa(options.ChannelID),
 				&discordgo.MessageSend{
 					Files: files,
 					Embed: &discordgo.MessageEmbed{
@@ -172,7 +208,10 @@ func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	return count
 }
 
-func hasEnoughReactions(reactions []*discordgo.MessageReactions, enough int) bool {
+func getWinningReaction(reactions []*discordgo.MessageReactions, enough int) bool {
+	if enough == 0 {
+		enough = 6
+	}
 
 	for _, reaction := range reactions {
 		if reaction.Me {

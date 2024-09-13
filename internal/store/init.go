@@ -2,6 +2,8 @@ package store
 
 import (
 	"database/sql"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func Init(url string) (*Queries, error) {
@@ -12,5 +14,6 @@ func Init(url string) (*Queries, error) {
 	}
 
 	MaybeRunMigrations("sqlite3", conn)
-	return New(conn), nil
+	db := New(conn)
+	return db, nil
 }

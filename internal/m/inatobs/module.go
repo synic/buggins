@@ -14,45 +14,52 @@ import (
 	dg "github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
 	"github.com/sethvargo/go-envconfig"
+	"go.uber.org/fx"
 
-	"github.com/synic/buggins/internal/inatapi"
+	"github.com/synic/buggins/internal/m"
+	"github.com/synic/buggins/internal/pkg/inat"
 	"github.com/synic/buggins/internal/store"
 )
 
-type BotConfig struct {
+type Config struct {
 	CronPattern string `env:"INATOBS_CRON_PATTERN, default=0 * * * *"`
 	ChannelID   string `env:"INATOBS_CHANNEL_ID, required"`
 	ProjectID   string `env:"INATOBS_PROJECT_ID, required"`
 	PageSize    int    `env:"INATOBS_PAGE_SIZE, default=10"`
 }
 
-type Bot struct {
-	api                inatapi.Api
-	discord            *dg.Session
-	store              *store.Queries
-	displayedObservers []int64
-	BotConfig
+type Module struct {
+	Config
+	api                     inat.Api
+	discord                 *dg.Session
+	store                   *store.Queries
+	displayedObservers      []int64
 	isStarted               bool
 	slashCommandsRegistered bool
 }
 
-func New(discord *dg.Session, db *store.Queries, config BotConfig) *Bot {
-	return &Bot{BotConfig: config, discord: discord, api: inatapi.New(), store: db}
+type providerResult struct {
+	fx.Out
+	Module m.Module `group:"modules"`
 }
 
-func InitFromEnv(d *dg.Session, s *store.Queries) (*Bot, error) {
-	var c BotConfig
+func New(discord *dg.Session, db *store.Queries, config Config) *Module {
+	return &Module{Config: config, discord: discord, api: inat.New(), store: db}
+}
+
+func ProviderFromEnv(d *dg.Session, s *store.Queries) (providerResult, error) {
+	var c Config
 
 	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return nil, fmt.Errorf("inatobs bot missing config: %w", err)
+		return providerResult{}, fmt.Errorf("inatobs module missing config: %w", err)
 	}
 
-	return New(d, s, c), nil
+	return providerResult{Module: New(d, s, c)}, nil
 }
 
-func (b *Bot) Start() {
+func (b *Module) Start() {
 	if !b.isStarted {
-		log.Printf("Started inatobs bot with cron pattern '%s'", b.CronPattern)
+		log.Printf("Started inatobs module with cron pattern '%s'", b.CronPattern)
 		b.isStarted = true
 		b.registerHandlers()
 		c := cron.New()
@@ -61,7 +68,7 @@ func (b *Bot) Start() {
 	}
 }
 
-func (b *Bot) registerHandlers() {
+func (b *Module) registerHandlers() {
 	if b.discord.DataReady {
 		b.registerSlashCommands()
 	} else {
@@ -95,7 +102,7 @@ func (b *Bot) registerHandlers() {
 	})
 }
 
-func (b *Bot) registerSlashCommands() {
+func (b *Module) registerSlashCommands() {
 	if !b.discord.DataReady {
 		fmt.Println("Cannot register inatobs slash commands, websocket not yet connected")
 		return
@@ -122,27 +129,27 @@ func (b *Bot) registerSlashCommands() {
 	log.Println("inatobs slash commands registered")
 }
 
-func (b *Bot) findUnseenObservation() (inatapi.Observation, error) {
+func (b *Module) findUnseenObservation() (inat.Observation, error) {
 	observations, err := b.api.FetchRecentProjectObservations(b.ProjectID, b.PageSize, 200)
 
 	if len(observations) <= 0 {
 		if err != nil {
-			return inatapi.Observation{}, fmt.Errorf("error fetching observations: %w", err)
+			return inat.Observation{}, fmt.Errorf("error fetching observations: %w", err)
 		}
 
-		return inatapi.Observation{}, errors.New("no unseen observations found")
+		return inat.Observation{}, errors.New("no unseen observations found")
 	}
 
 	o, err := b.selectUnseenObservation(observations)
 
 	if err != nil {
-		return inatapi.Observation{}, fmt.Errorf("error fetching unseen observation: %w", err)
+		return inat.Observation{}, fmt.Errorf("error fetching unseen observation: %w", err)
 	}
 
 	return o, nil
 }
 
-func (b *Bot) Post() {
+func (b *Module) Post() {
 	log.Print("Attempting to fetch an unseen observation to display")
 	o, err := b.findUnseenObservation()
 
@@ -210,9 +217,9 @@ func (b *Bot) Post() {
 	b.markObservationAsSeen(context.Background(), o)
 }
 
-func (b *Bot) markObservationAsSeen(
+func (b *Module) markObservationAsSeen(
 	ctx context.Context,
-	o inatapi.Observation,
+	o inat.Observation,
 ) (store.SeenObservation, error) {
 	if !slices.Contains(b.displayedObservers, o.UserID) {
 		b.displayedObservers = append(b.displayedObservers, o.UserID)
@@ -227,14 +234,14 @@ func (b *Bot) markObservationAsSeen(
 	return seen, nil
 }
 
-func (b *Bot) selectUnseenObservation(
-	observations []inatapi.Observation,
-) (inatapi.Observation, error) {
+func (b *Module) selectUnseenObservation(
+	observations []inat.Observation,
+) (inat.Observation, error) {
 	var (
 		observationIds     []int64
-		unseen             []inatapi.Observation
+		unseen             []inat.Observation
 		seenIds            []int64
-		observerMap        = make(map[int64][]inatapi.Observation)
+		observerMap        = make(map[int64][]inat.Observation)
 		potentialObservers []int64
 	)
 
@@ -245,7 +252,7 @@ func (b *Bot) selectUnseenObservation(
 	seen, err := b.store.FindObservationsByIds(context.Background(), observationIds)
 
 	if err != nil {
-		return inatapi.Observation{}, fmt.Errorf("error selecting seen observations: %w", err)
+		return inat.Observation{}, fmt.Errorf("error selecting seen observations: %w", err)
 	}
 
 	for _, o := range seen {
@@ -259,7 +266,7 @@ func (b *Bot) selectUnseenObservation(
 			items, ok := observerMap[o.UserID]
 
 			if !ok {
-				items = make([]inatapi.Observation, 0)
+				items = make([]inat.Observation, 0)
 			}
 
 			items = append(items, o)
@@ -272,7 +279,7 @@ func (b *Bot) selectUnseenObservation(
 	}
 
 	if len(unseen) <= 0 {
-		return inatapi.Observation{}, errors.New("no unseen observations found")
+		return inat.Observation{}, errors.New("no unseen observations found")
 	}
 
 	if len(potentialObservers) <= 0 {
@@ -288,7 +295,7 @@ func (b *Bot) selectUnseenObservation(
 	items, ok := observerMap[observerId]
 
 	if !ok || len(items) <= 0 {
-		return inatapi.Observation{}, fmt.Errorf(
+		return inat.Observation{}, fmt.Errorf(
 			"could not find unseen observations for observer %d",
 			observerId,
 		)
