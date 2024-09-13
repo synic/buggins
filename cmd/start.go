@@ -1,6 +1,10 @@
 package cmd
 
 import (
+	"errors"
+	"log"
+	"os"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -17,22 +21,22 @@ func getProviders(configFile string) fx.Option {
 		fx.Provide(newDiscordSession),
 		fx.Provide(newDatabase),
 		fx.Provide(featured.Provider),
-		fx.Provide(inatobs.ProviderFromEnv),
-		fx.Provide(inatlookup.ProviderFromEnv),
-		fx.Provide(thisthat.ProviderFromEnv),
+		fx.Provide(inatobs.Provider),
+		fx.Provide(inatlookup.Provider),
+		fx.Provide(thisthat.Provider),
 		fx.Provide(newBot),
 	)
 }
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start buggins bot",
+	Short: "Start buggins bot and connect to Discord",
 	Run: func(cmd *cobra.Command, args []string) {
 		configFile, _ := cmd.Flags().GetString("config")
-		fx.New(
-			getProviders(configFile),
-			fx.Invoke(func(bot) {}),
-		).Run()
+		if _, err := os.Stat(configFile); errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("config file `%s` does not exist", configFile)
+		}
+		fx.New(getProviders(configFile), fx.Invoke(func(bot) {})).Run()
 	},
 }
 

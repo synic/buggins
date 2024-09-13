@@ -11,15 +11,11 @@
 /bin/*
 !/bin/.gitkeep
 
-# data
-/data/*
-!/data/.gitkeep
-
 # environments
 /.env
 
 # database
-/.store
+db.sqlite
 
 # misc
 .DS_Store
@@ -29,5 +25,4 @@
 /go.work
 
 # configs
-/config/*
-!/config/example.yaml
+/config.yaml

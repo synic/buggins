@@ -5,11 +5,9 @@ go 1.23.0
 require (
 	github.com/bwmarrin/discordgo v0.28.1
 	github.com/go-viper/mapstructure/v2 v2.1.0
-	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pressly/goose/v3 v3.21.1
 	github.com/robfig/cron/v3 v3.0.0
-	github.com/sethvargo/go-envconfig v1.1.0
 	github.com/spf13/cobra v1.8.1
 	go.uber.org/fx v1.22.2
 	gopkg.in/yaml.v3 v3.0.1

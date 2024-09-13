@@ -15,7 +15,7 @@
 /.env
 
 # database
-/data
+*.sqlite
 
 # misc
 .DS_Store
@@ -25,4 +25,4 @@
 /go.work
 
 # configs
-/config/*
+/config.yaml

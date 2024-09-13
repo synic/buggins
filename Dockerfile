@@ -6,7 +6,6 @@ COPY . .
 
 ENV GOPATH=/go
 ENV PATH="${PATH}:/go/bin"
-RUN mkdir /app/data
 RUN set -x \
     && apk add --no-cache build-base=0.5-r3 make=4.4.1-r2 \
     && make release-docker
@@ -15,6 +14,5 @@ FROM gcr.io/distroless/static-debian12:9efbcaacd8eac4960b315c502adffdbf3398ce62
 
 WORKDIR /
 COPY --from=build-base /app/bin/bot /bot
-COPY --from=build-base /app/data /data
 
-CMD ["/bot", "start"]
+CMD ["/bot", "start", "-c", "config.yaml"]

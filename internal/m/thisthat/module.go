@@ -1,27 +1,30 @@
 package thisthat
 
 import (
-	"context"
-	"fmt"
+	"errors"
 	"log"
 	"strings"
 
-	dg "github.com/bwmarrin/discordgo"
-	"github.com/sethvargo/go-envconfig"
+	"github.com/bwmarrin/discordgo"
 	"go.uber.org/fx"
 
+	"github.com/synic/buggins/internal/conf"
 	"github.com/synic/buggins/internal/m"
 )
 
 var emojis = []string{"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"}
 
-type Config struct {
-	ChannelID string `env:"THISTHAT_CHANNEL_ID, required"`
+type ChannelOptions struct {
+	ID string `mapstructure:"id"`
+}
+
+type Options struct {
+	Channels []ChannelOptions `mapstructure:"channels"`
 }
 
 type Module struct {
-	Config
-	discord   *dg.Session
+	discord   *discordgo.Session
+	options   Options
 	isStarted bool
 }
 
@@ -30,31 +33,50 @@ type providerResult struct {
 	Module m.Module `group:"modules"`
 }
 
-func New(discord *dg.Session, config Config) *Module {
-	return &Module{Config: config, discord: discord}
+func New(discord *discordgo.Session, options Options) *Module {
+	return &Module{options: options, discord: discord}
 }
 
-func ProviderFromEnv(d *dg.Session) (providerResult, error) {
-	var c Config
+func Provider(c conf.Config,
+	discord *discordgo.Session,
+) (providerResult, error) {
+	var options Options
+	err := c.Populate("thisthat", &options)
 
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return providerResult{}, fmt.Errorf("thisthat module missing config: %w", err)
+	if err != nil {
+		return providerResult{}, err
 	}
 
-	return providerResult{Module: New(d, c)}, nil
+	return providerResult{Module: New(discord, options)}, nil
+}
+
+func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
+	for _, o := range m.options.Channels {
+		if o.ID == channelID {
+			return o, nil
+		}
+	}
+
+	return ChannelOptions{}, errors.New("channel options not found")
 }
 
 func (b *Module) Start() {
 	if !b.isStarted {
 		b.isStarted = true
-		log.Println("Started thisthat module")
+		log.Println("started thisthat module")
 		b.registerHandlers()
 	}
 }
 
 func (b *Module) registerHandlers() {
-	b.discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
-		if m.ChannelID != b.ChannelID || m.Author.ID == b.discord.State.User.ID {
+	b.discord.AddHandler(func(d *discordgo.Session, m *discordgo.MessageCreate) {
+		options, err := b.getChannelOptions(m.ChannelID)
+
+		if err != nil {
+			return
+		}
+
+		if m.ChannelID != options.ID || m.Author.ID == b.discord.State.User.ID {
 			return
 		}
 
@@ -68,7 +90,7 @@ func (b *Module) registerHandlers() {
 	})
 }
 
-func getImageAttachmentCount(attachments []*dg.MessageAttachment) int {
+func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	if len(attachments) <= 1 {
 		return 0
 	}

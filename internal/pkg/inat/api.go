@@ -46,7 +46,7 @@ func (a Api) Search(sources []string, q string) (SearchResult, error) {
 }
 
 func (a Api) FetchRecentProjectObservations(
-	projectId string,
+	projectID int64,
 	pages int,
 	pageSize int,
 ) ([]Observation, error) {
@@ -59,8 +59,8 @@ func (a Api) FetchRecentProjectObservations(
 		log.Printf("Connecting to inat for page %d", currentPage)
 		res, err := http.Get(
 			fmt.Sprintf(
-				"https://inaturalist.org/observations/project/%s.json?order_by=id&order=desc&per_page=%d",
-				projectId,
+				"https://inaturalist.org/observations/project/%d.json?order_by=id&order=desc&per_page=%d",
+				projectID,
 				pageSize,
 			),
 		)
@@ -84,7 +84,7 @@ func (a Api) FetchRecentProjectObservations(
 		}
 
 		for _, item := range items {
-			if item.Photos != nil && len(item.Photos) > 0 {
+			if len(item.Photos) > 0 {
 				if item.Photos[0].MediumURL != "" {
 					observations = append(observations, item)
 				}

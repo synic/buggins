@@ -16,7 +16,7 @@ type Config struct {
 
 func getDefaults() Config {
 	return Config{
-		DatabaseURL: "data/database.sqlite",
+		DatabaseURL: "db.sqlite",
 	}
 }
 
@@ -61,19 +61,27 @@ func validate(conf Config) error {
 	return nil
 }
 
-func GetConfig[T any](c Config, module string) (T, error) {
-	var options T
+func (c Config) Populate(module string, res any) error {
 	data, ok := c.ModuleOptions[module]
 
 	if !ok {
-		return options, errors.New("module options not found")
+		return errors.New("module options not found")
 	}
 
-	err := mapstructure.Decode(data, &options)
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           res,
+	})
 
 	if err != nil {
-		return options, err
+		return err
 	}
 
-	return options, nil
+	err = decoder.Decode(data)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

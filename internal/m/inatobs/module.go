@@ -11,29 +11,32 @@ import (
 	"slices"
 
 	"github.com/bwmarrin/discordgo"
-	dg "github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
-	"github.com/sethvargo/go-envconfig"
 	"go.uber.org/fx"
 
+	"github.com/synic/buggins/internal/conf"
 	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/pkg/inat"
 	"github.com/synic/buggins/internal/store"
 )
 
-type Config struct {
-	CronPattern string `env:"INATOBS_CRON_PATTERN, default=0 * * * *"`
-	ChannelID   string `env:"INATOBS_CHANNEL_ID, required"`
-	ProjectID   string `env:"INATOBS_PROJECT_ID, required"`
-	PageSize    int    `env:"INATOBS_PAGE_SIZE, default=10"`
+type ChannelOptions struct {
+	ID          string `mapstructure:"id"`
+	CronPattern string `mapstructure:"cron_pattern"`
+	ProjectID   int64  `mapstructure:"inat_project_id"`
+}
+
+type Options struct {
+	Channels []ChannelOptions `mapstructure:"channels"`
+	PageSize int              `mapstructure:"page_size"`
 }
 
 type Module struct {
-	Config
 	api                     inat.Api
-	discord                 *dg.Session
+	discord                 *discordgo.Session
 	store                   *store.Queries
-	displayedObservers      []int64
+	displayedObservers      map[string][]int64
+	options                 Options
 	isStarted               bool
 	slashCommandsRegistered bool
 }
@@ -43,44 +46,74 @@ type providerResult struct {
 	Module m.Module `group:"modules"`
 }
 
-func New(discord *dg.Session, db *store.Queries, config Config) *Module {
-	return &Module{Config: config, discord: discord, api: inat.New(), store: db}
-}
-
-func ProviderFromEnv(d *dg.Session, s *store.Queries) (providerResult, error) {
-	var c Config
-
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return providerResult{}, fmt.Errorf("inatobs module missing config: %w", err)
-	}
-
-	return providerResult{Module: New(d, s, c)}, nil
-}
-
-func (b *Module) Start() {
-	if !b.isStarted {
-		log.Printf("Started inatobs module with cron pattern '%s'", b.CronPattern)
-		b.isStarted = true
-		b.registerHandlers()
-		c := cron.New()
-		c.AddFunc(b.CronPattern, b.Post)
-		c.Start()
+func New(discord *discordgo.Session, db *store.Queries, options Options) *Module {
+	return &Module{
+		options:            options,
+		discord:            discord,
+		api:                inat.New(),
+		store:              db,
+		displayedObservers: make(map[string][]int64),
 	}
 }
 
-func (b *Module) registerHandlers() {
-	if b.discord.DataReady {
-		b.registerSlashCommands()
+func Provider(c conf.Config,
+	discord *discordgo.Session,
+	db *store.Queries,
+) (providerResult, error) {
+	var options Options
+	err := c.Populate("inatobs", &options)
+
+	if err != nil {
+		return providerResult{}, err
+	}
+
+	return providerResult{Module: New(discord, db, options)}, nil
+}
+
+func (m *Module) Start() {
+	if !m.isStarted {
+		log.Println("started inatobs module")
+		m.isStarted = true
+		m.registerHandlers()
+
+		for _, o := range m.options.Channels {
+			pattern := o.CronPattern
+			if pattern == "" {
+				pattern = "0 * * * *"
+			}
+
+			c := cron.New()
+			c.AddFunc(pattern, func() { m.Post(o.ID) })
+			c.Start()
+		}
+	}
+}
+
+func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
+	for _, o := range m.options.Channels {
+		if o.ID == channelID {
+			return o, nil
+		}
+	}
+
+	return ChannelOptions{}, errors.New("channel options not found")
+}
+
+func (m *Module) registerHandlers() {
+	if m.discord.DataReady {
+		m.registerSlashCommands()
 	} else {
-		b.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+		m.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 			log.Println("Discord connection detected, registering slash commands for inatobs")
-			b.registerSlashCommands()
+			m.registerSlashCommands()
 		})
 	}
 
-	b.discord.AddHandler(func(d *dg.Session, i *dg.InteractionCreate) {
-		if i.ChannelID != b.ChannelID {
-			d.InteractionRespond(i.Interaction, &dg.InteractionResponse{
+	m.discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
+		_, err := m.getChannelOptions(i.ChannelID)
+
+		if err != nil {
+			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: "Wrong channel, bub.",
@@ -90,9 +123,9 @@ func (b *Module) registerHandlers() {
 
 		if i.ApplicationCommandData().Name == "loadinat" {
 			log.Println("/loadinat called, loading observation to display")
-			go b.Post()
+			go m.Post(i.ChannelID)
 
-			d.InteractionRespond(i.Interaction, &dg.InteractionResponse{
+			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
 					Content: "Done, observation is loading and will be posted soon!",
@@ -102,17 +135,17 @@ func (b *Module) registerHandlers() {
 	})
 }
 
-func (b *Module) registerSlashCommands() {
-	if !b.discord.DataReady {
+func (m *Module) registerSlashCommands() {
+	if !m.discord.DataReady {
 		fmt.Println("Cannot register inatobs slash commands, websocket not yet connected")
 		return
 	}
 
-	if b.slashCommandsRegistered {
+	if m.slashCommandsRegistered {
 		return
 	}
 
-	b.slashCommandsRegistered = true
+	m.slashCommandsRegistered = true
 	var adminPermissions int64 = discordgo.PermissionManageServer
 	command := discordgo.ApplicationCommand{
 		Name:                     "loadinat",
@@ -120,7 +153,7 @@ func (b *Module) registerSlashCommands() {
 		DefaultMemberPermissions: &adminPermissions,
 	}
 
-	_, err := b.discord.ApplicationCommandCreate(b.discord.State.Application.ID, "", &command)
+	_, err := m.discord.ApplicationCommandCreate(m.discord.State.Application.ID, "", &command)
 
 	if err != nil {
 		log.Printf("error creating /loadinat command: %v", err)
@@ -129,8 +162,21 @@ func (b *Module) registerSlashCommands() {
 	log.Println("inatobs slash commands registered")
 }
 
-func (b *Module) findUnseenObservation() (inat.Observation, error) {
-	observations, err := b.api.FetchRecentProjectObservations(b.ProjectID, b.PageSize, 200)
+func (m *Module) findUnseenObservation(
+	channelID string,
+	projectID int64,
+) (inat.Observation, error) {
+	options, err := m.getChannelOptions(channelID)
+
+	if err != nil {
+		return inat.Observation{}, err
+	}
+
+	observations, err := m.api.FetchRecentProjectObservations(
+		options.ProjectID,
+		m.options.PageSize,
+		200,
+	)
 
 	if len(observations) <= 0 {
 		if err != nil {
@@ -140,7 +186,7 @@ func (b *Module) findUnseenObservation() (inat.Observation, error) {
 		return inat.Observation{}, errors.New("no unseen observations found")
 	}
 
-	o, err := b.selectUnseenObservation(observations)
+	o, err := m.selectUnseenObservation(channelID, projectID, observations)
 
 	if err != nil {
 		return inat.Observation{}, fmt.Errorf("error fetching unseen observation: %w", err)
@@ -149,9 +195,15 @@ func (b *Module) findUnseenObservation() (inat.Observation, error) {
 	return o, nil
 }
 
-func (b *Module) Post() {
+func (m *Module) Post(channelID string) {
+	options, err := m.getChannelOptions(channelID)
+
+	if err != nil {
+		return
+	}
+
 	log.Print("Attempting to fetch an unseen observation to display")
-	o, err := b.findUnseenObservation()
+	o, err := m.findUnseenObservation(channelID, options.ProjectID)
 
 	if err != nil {
 		log.Printf("error fetching unseen observation: %v", err)
@@ -160,17 +212,14 @@ func (b *Module) Post() {
 
 	taxonName, commonName := o.GetTaxonNames()
 
-	fields := make([]*dg.MessageEmbedField, 0)
-	fields = append(fields, &dg.MessageEmbedField{
+	fields := make([]*discordgo.MessageEmbedField, 0)
+	fields = append(fields, &discordgo.MessageEmbedField{
 		Name:  "Taxon",
 		Value: fmt.Sprintf("%s (%s)", taxonName, commonName),
 	})
-	fields = append(fields, &dg.MessageEmbedField{
-		Name: "Our community iNaturalist Project",
-		Value: fmt.Sprintf(
-			"https://inaturalist.org/projects/%s",
-			b.ProjectID,
-		),
+	fields = append(fields, &discordgo.MessageEmbedField{
+		Name:  "Our community iNaturalist Project",
+		Value: fmt.Sprintf("https://inaturalist.org/projects/%d", options.ProjectID),
 	})
 
 	photos := o.Photos
@@ -179,7 +228,7 @@ func (b *Module) Post() {
 		photos = photos[:5]
 	}
 
-	files := make([]*dg.File, 0, len(photos))
+	files := make([]*discordgo.File, 0, len(photos))
 
 	for _, photo := range photos {
 		r, err := http.Get(photo.MediumURL)
@@ -190,19 +239,19 @@ func (b *Module) Post() {
 		}
 
 		defer r.Body.Close()
-		files = append(files, &dg.File{
+		files = append(files, &discordgo.File{
 			Name:        photo.MediumURL,
 			ContentType: "image/jpeg",
 			Reader:      r.Body,
 		})
 	}
 
-	b.discord.ChannelMessageSendComplex(b.ChannelID, &dg.MessageSend{
+	m.discord.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 		Files: files,
-		Embed: &dg.MessageEmbed{
+		Embed: &discordgo.MessageEmbed{
 			URL:   fmt.Sprintf("https://inaturalist.org/observations/%d", o.ID),
 			Title: fmt.Sprintf("%s has spotted something new!", o.Username),
-			Author: &dg.MessageEmbedAuthor{
+			Author: &discordgo.MessageEmbedAuthor{
 				Name:    o.User.Username,
 				URL:     fmt.Sprintf("https://inaturalist.org/people/%d", o.UserID),
 				IconURL: o.User.UserIconURL,
@@ -214,18 +263,39 @@ func (b *Module) Post() {
 
 	log.Printf("Displaying observation id %d from %s", o.ID, o.Username)
 
-	b.markObservationAsSeen(context.Background(), o)
+	m.markObservationAsSeen(context.Background(), channelID, o)
 }
 
-func (b *Module) markObservationAsSeen(
+func (m *Module) markObservationAsSeen(
 	ctx context.Context,
+	channelID string,
 	o inat.Observation,
 ) (store.SeenObservation, error) {
-	if !slices.Contains(b.displayedObservers, o.UserID) {
-		b.displayedObservers = append(b.displayedObservers, o.UserID)
+	options, err := m.getChannelOptions(channelID)
+
+	if err != nil {
+		return store.SeenObservation{}, err
 	}
 
-	seen, err := b.store.CreateSeenObservation(ctx, o.ID)
+	displayed, ok := m.displayedObservers[channelID]
+
+	if !ok {
+		displayed = make([]int64, 0)
+	}
+
+	if !slices.Contains(displayed, o.UserID) {
+		displayed = append(displayed, o.UserID)
+	}
+
+	m.displayedObservers[channelID] = displayed
+	seen, err := m.store.CreateSeenObservation(
+		ctx,
+		store.CreateSeenObservationParams{
+			ID:        o.ID,
+			ProjectID: options.ProjectID,
+			ChannelID: channelID,
+		},
+	)
 
 	if err != nil {
 		return store.SeenObservation{}, fmt.Errorf("error saving seen observation: %w", err)
@@ -234,7 +304,9 @@ func (b *Module) markObservationAsSeen(
 	return seen, nil
 }
 
-func (b *Module) selectUnseenObservation(
+func (m *Module) selectUnseenObservation(
+	channelID string,
+	projectID int64,
 	observations []inat.Observation,
 ) (inat.Observation, error) {
 	var (
@@ -245,11 +317,21 @@ func (b *Module) selectUnseenObservation(
 		potentialObservers []int64
 	)
 
+	displayed, ok := m.displayedObservers[channelID]
+
+	if !ok {
+		displayed = make([]int64, 0)
+	}
+
 	for _, o := range observations {
 		observationIds = append(observationIds, o.ID)
 	}
 
-	seen, err := b.store.FindObservationsByIds(context.Background(), observationIds)
+	seen, err := m.store.FindObservations(context.Background(), store.FindObservationsParams{
+		ID:        observationIds,
+		ProjectID: projectID,
+		ChannelID: channelID,
+	})
 
 	if err != nil {
 		return inat.Observation{}, fmt.Errorf("error selecting seen observations: %w", err)
@@ -272,7 +354,7 @@ func (b *Module) selectUnseenObservation(
 			items = append(items, o)
 			observerMap[o.UserID] = items
 
-			if !slices.Contains(b.displayedObservers, o.UserID) {
+			if !slices.Contains(displayed, o.UserID) {
 				potentialObservers = append(potentialObservers, o.UserID)
 			}
 		}
@@ -284,7 +366,8 @@ func (b *Module) selectUnseenObservation(
 
 	if len(potentialObservers) <= 0 {
 		potentialObservers = slices.Collect(maps.Keys(observerMap))
-		b.displayedObservers = b.displayedObservers[:0]
+		displayed = displayed[:0]
+		m.displayedObservers[channelID] = displayed
 	}
 
 	rand.Shuffle(len(potentialObservers), func(i, j int) {

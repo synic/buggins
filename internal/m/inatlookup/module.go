@@ -1,34 +1,43 @@
 package inatlookup
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
+	"slices"
 
-	dg "github.com/bwmarrin/discordgo"
-	"github.com/sethvargo/go-envconfig"
+	"github.com/bwmarrin/discordgo"
 	"go.uber.org/fx"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
+	"github.com/synic/buggins/internal/conf"
 	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/pkg/inat"
 )
 
-type commandHandler = func(*dg.Session, *dg.MessageCreate, string)
+type commandHandler = func(*discordgo.Session, *discordgo.MessageCreate, string)
 
 var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
-type Config struct {
-	CommandPrefix string `env:"INATLOOKUP_COMMAND_PREFIX, default=,"`
+type GuildOptions struct {
+	CommandPrefixRegex *regexp.Regexp
+	Name               string   `mapstructure:"name"`
+	ID                 string   `mapstructure:"id"`
+	CommandPrefix      string   `mapstructure:"command_prefix"`
+	Channels           []string `mapstructure:"channels"`
+}
+
+type Options struct {
+	Guilds []GuildOptions `mapstructure:"guilds"`
 }
 
 type Module struct {
-	Config
 	api       inat.Api
-	discord   *dg.Session
+	discord   *discordgo.Session
+	options   Options
 	isStarted bool
 }
 
@@ -37,46 +46,80 @@ type providerResult struct {
 	Module m.Module `group:"modules"`
 }
 
-func New(discord *dg.Session, config Config) *Module {
-	return &Module{Config: config, api: inat.New(), discord: discord}
+func New(discord *discordgo.Session, options Options) *Module {
+	return &Module{options: options, api: inat.New(), discord: discord}
 }
 
-func ProviderFromEnv(d *dg.Session) (providerResult, error) {
-	var c Config
+func Provider(
+	c conf.Config,
+	discord *discordgo.Session,
+) (providerResult, error) {
+	var options Options
+	err := c.Populate("inatlookup", &options)
 
-	if err := envconfig.Process(context.Background(), &c); err != nil {
-		return providerResult{}, fmt.Errorf("inatlookup module missing config: %w", err)
+	if err != nil {
+		return providerResult{}, err
 	}
 
-	return providerResult{Module: New(d, c)}, nil
+	return providerResult{Module: New(discord, options)}, nil
+}
+
+func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
+	for _, o := range m.options.Guilds {
+		if o.ID == guildID {
+			return o, nil
+		}
+	}
+
+	return GuildOptions{}, errors.New("guild not configured")
 }
 
 func (b *Module) Start() {
 	if !b.isStarted {
 		b.isStarted = true
 		b.registerHandlers()
-		log.Print("Started inatlookup module")
+		log.Print("started inatlookup module")
 	}
 }
 
 func (b *Module) registerHandlers() {
-	if b.CommandPrefix == "" {
-		b.CommandPrefix = ","
-	}
-
-	re, err := regexp.Compile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, b.CommandPrefix))
-
-	if err != nil {
-		log.Printf("error compiling command handler regex: %v", err)
-		return
+	for i, o := range b.options.Guilds {
+		if o.CommandPrefix == "" {
+			o.CommandPrefix = ","
+		}
+		re, err := regexp.Compile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, o.CommandPrefix))
+		if err != nil {
+			log.Printf("error compiling cmd prefix for guild %s: %v", o.ID, err)
+			continue
+		}
+		o.CommandPrefixRegex = re
+		if slices.Contains(o.Channels, "all") {
+			o.Channels = []string{}
+		}
+		b.options.Guilds[i] = o
 	}
 
 	handlers := map[string]commandHandler{
 		"t": b.lookupTaxa,
 	}
 
-	b.discord.AddHandler(func(d *dg.Session, m *dg.MessageCreate) {
-		matches := re.FindStringSubmatch(m.Content)
+	b.discord.AddHandler(func(d *discordgo.Session, m *discordgo.MessageCreate) {
+		options, err := b.getGuildOptions(m.GuildID)
+
+		if err != nil {
+			return
+		}
+
+		if len(options.Channels) > 0 && !slices.Contains(options.Channels, m.ChannelID) {
+			return
+		}
+
+		if options.CommandPrefixRegex == nil {
+			log.Printf("guild %s does not have a valid command prefix", m.GuildID)
+			return
+		}
+
+		matches := options.CommandPrefixRegex.FindStringSubmatch(m.Content)
 
 		if matches != nil {
 			command := matches[1]
@@ -101,18 +144,18 @@ func (b *Module) registerHandlers() {
 	})
 }
 
-func (b *Module) lookupTaxa(d *dg.Session, m *dg.MessageCreate, content string) {
+func (b *Module) lookupTaxa(d *discordgo.Session, m *discordgo.MessageCreate, content string) {
 	r, err := b.api.Search([]string{"taxa"}, content)
 
 	if err == nil && len(r.Results) > 0 {
 		r := r.Results[0].Record
 		p := message.NewPrinter(language.English)
 
-		b.discord.ChannelMessageSendComplex(m.ChannelID, &dg.MessageSend{
-			Embed: &dg.MessageEmbed{
-				Thumbnail: &dg.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumURL},
+		b.discord.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+			Embed: &discordgo.MessageEmbed{
+				Thumbnail: &discordgo.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumURL},
 				Color:     5763719,
-				Fields: []*dg.MessageEmbedField{
+				Fields: []*discordgo.MessageEmbedField{
 					{
 						Value: fmt.Sprintf(
 							"**[%s (%s)](https://inaturalist.org/taxa/%d)**",

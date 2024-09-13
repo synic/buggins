@@ -12,38 +12,60 @@ import (
 
 const createSeenObservation = `-- name: CreateSeenObservation :one
 insert
-  or ignore into seen_observation (id)
-    values (?)
+  or ignore into seen_observation (id, channel_id, project_id)
+    values (?, ?, ?)
   returning
-    id, created_at, updated_at
+    id, channel_id, project_id, created_at, updated_at
 `
 
-func (q *Queries) CreateSeenObservation(ctx context.Context, id int64) (SeenObservation, error) {
-	row := q.db.QueryRowContext(ctx, createSeenObservation, id)
+type CreateSeenObservationParams struct {
+	ID        int64  `json:"id"`
+	ChannelID string `json:"channel_id"`
+	ProjectID int64  `json:"project_id"`
+}
+
+func (q *Queries) CreateSeenObservation(ctx context.Context, arg CreateSeenObservationParams) (SeenObservation, error) {
+	row := q.db.QueryRowContext(ctx, createSeenObservation, arg.ID, arg.ChannelID, arg.ProjectID)
 	var i SeenObservation
-	err := row.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.ProjectID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
-const findObservationsByIds = `-- name: FindObservationsByIds :many
+const findObservations = `-- name: FindObservations :many
 select
-  id, created_at, updated_at
+  id, channel_id, project_id, created_at, updated_at
 from
   seen_observation
 where
-  id in (/*SLICE:ids*/?)
+  project_id = ?1
+  and channel_id = ?2
+  and id in (/*SLICE:id*/?)
 `
 
-func (q *Queries) FindObservationsByIds(ctx context.Context, ids []int64) ([]SeenObservation, error) {
-	query := findObservationsByIds
+type FindObservationsParams struct {
+	ProjectID int64   `json:"project_id"`
+	ChannelID string  `json:"channel_id"`
+	ID        []int64 `json:"id"`
+}
+
+func (q *Queries) FindObservations(ctx context.Context, arg FindObservationsParams) ([]SeenObservation, error) {
+	query := findObservations
 	var queryParams []interface{}
-	if len(ids) > 0 {
-		for _, v := range ids {
+	queryParams = append(queryParams, arg.ProjectID)
+	queryParams = append(queryParams, arg.ChannelID)
+	if len(arg.ID) > 0 {
+		for _, v := range arg.ID {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:id*/?", strings.Repeat(",?", len(arg.ID))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:id*/?", "NULL", 1)
 	}
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
@@ -53,7 +75,13 @@ func (q *Queries) FindObservationsByIds(ctx context.Context, ids []int64) ([]See
 	var items []SeenObservation
 	for rows.Next() {
 		var i SeenObservation
-		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.ProjectID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -77,16 +105,18 @@ select
     where
       channel_id = ?
       and message_id = ?
+      and guild_id = ?
     limit 1)
 `
 
 type IsMessageFeaturedParams struct {
 	ChannelID string `json:"channel_id"`
 	MessageID string `json:"message_id"`
+	GuildID   string `json:"guild_id"`
 }
 
 func (q *Queries) IsMessageFeatured(ctx context.Context, arg IsMessageFeaturedParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, isMessageFeatured, arg.ChannelID, arg.MessageID)
+	row := q.db.QueryRowContext(ctx, isMessageFeatured, arg.ChannelID, arg.MessageID, arg.GuildID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -94,21 +124,23 @@ func (q *Queries) IsMessageFeatured(ctx context.Context, arg IsMessageFeaturedPa
 
 const saveFeaturedMessage = `-- name: SaveFeaturedMessage :one
 insert
-  or ignore into featured_message (message_id, channel_id)
-    values (?, ?)
+  or ignore into featured_message (message_id, channel_id, guild_id)
+    values (?, ?, ?)
   returning
-    channel_id, message_id, created_at, updated_at
+    guild_id, channel_id, message_id, created_at, updated_at
 `
 
 type SaveFeaturedMessageParams struct {
 	MessageID string `json:"message_id"`
 	ChannelID string `json:"channel_id"`
+	GuildID   string `json:"guild_id"`
 }
 
 func (q *Queries) SaveFeaturedMessage(ctx context.Context, arg SaveFeaturedMessageParams) (FeaturedMessage, error) {
-	row := q.db.QueryRowContext(ctx, saveFeaturedMessage, arg.MessageID, arg.ChannelID)
+	row := q.db.QueryRowContext(ctx, saveFeaturedMessage, arg.MessageID, arg.ChannelID, arg.GuildID)
 	var i FeaturedMessage
 	err := row.Scan(
+		&i.GuildID,
 		&i.ChannelID,
 		&i.MessageID,
 		&i.CreatedAt,

@@ -6,10 +6,12 @@ CGO_ENABLED=1
 AIR_VERSION=v1.49.0
 SQLC_VERSION=v1.27.0
 GOOSE_VERSION=v3.21.1
+STATICCHECK_VERSION=v0.5.1
 
 AIR_TEST := $(shell command -v air 2> /dev/null)
 SQLC_TEST := $(shell command -v sqlc 2> /dev/null)
 GOOSE_TEST := $(shell command -v goose 2> /dev/null)
+STATICCHECK_TEST := $(shell command -v staticcheck 2> /dev/null)
 
 .PHONY: dev
 dev: install-devdeps
@@ -25,6 +27,9 @@ ifndef GOOSE_TEST
 endif
 ifndef SQLC_TEST
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}
+endif
+ifndef STATICCHECK_TEST
+	go install honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}
 endif
 
 .PHONY: build
@@ -48,9 +53,10 @@ codegen:
 test:
 	go test -race ./... | tc
 
-.PHONY: vet
-vet:
+.PHONY: lint
+lint:
 	go vet ./...
+	staticcheck ./...
 
 .PHONY: build-container
 build-container:

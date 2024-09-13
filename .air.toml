@@ -3,7 +3,7 @@ tmp_dir = ".tmp"
 
 [build]
   args_bin = []
-  bin = "./bin/bot start -c config/config.yaml"
+  bin = "./bin/bot start -c config.yaml"
   cmd = "make build"
   delay = 1000
   exclude_dir = ["logs", "bin"]
