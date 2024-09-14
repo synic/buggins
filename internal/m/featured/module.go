@@ -7,55 +7,29 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"go.uber.org/fx"
 
-	"github.com/synic/buggins/internal/conf"
-	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/store"
 )
-
-type GuildOptions struct {
-	Name                  string `mapstructure:"name"`
-	ID                    string `mapstructure:"id"`
-	ChannelID             string `mapstructure:"channel_id"`
-	RequiredReactionCount int    `mapstructure:"reaction_count"`
-}
-
-type Options struct {
-	Guilds []GuildOptions `mapstructure:"guilds"`
-}
-
-type providerResult struct {
-	fx.Out
-	Module m.Module `group:"modules"`
-}
-
-func Provider(
-	c conf.Config,
-	discord *discordgo.Session,
-	db *store.Queries,
-) (providerResult, error) {
-	var options Options
-	err := c.Populate("featured", &options)
-
-	if err != nil {
-		return providerResult{}, err
-	}
-
-	return providerResult{Module: New(discord, db, options)}, nil
-}
 
 type Module struct {
 	discord   *discordgo.Session
 	db        *store.Queries
 	options   Options
 	isStarted bool
+	mu        sync.Mutex
 }
 
-func New(discord *discordgo.Session, db *store.Queries, options Options) *Module {
-	return &Module{options: options, discord: discord, db: db}
+func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
+	options, err := getModuleOptions(db)
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse featured options: %w", err)
+	}
+
+	return &Module{options: options, discord: discord, db: db}, nil
 }
 
 func (m *Module) Start() {
@@ -63,11 +37,35 @@ func (m *Module) Start() {
 		m.isStarted = true
 		m.registerHandlers()
 		log.Println("started featured module")
+		log.Printf(" -> guilds: %+v", m.GetOptions().Guilds)
 	}
 }
 
+func (m *Module) GetName() string {
+	return moduleName
+}
+
+func (m *Module) GetOptions() Options {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.options
+}
+
+func (m *Module) ReloadConfig(db *store.Queries) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	options, err := getModuleOptions(db)
+
+	if err != nil {
+		return fmt.Errorf("unable to parse featured options: %w", err)
+	}
+
+	m.options = options
+	return nil
+}
+
 func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
-	for _, o := range m.options.Guilds {
+	for _, o := range m.GetOptions().Guilds {
 		if o.ID == guildID {
 			return o, nil
 		}

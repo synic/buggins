@@ -37,6 +37,22 @@ func (q *Queries) CreateSeenObservation(ctx context.Context, arg CreateSeenObser
 	return i, err
 }
 
+const deleteModuleConfiguration = `-- name: DeleteModuleConfiguration :exec
+delete from module_configuration
+where module = ?
+  and key = ?
+`
+
+type DeleteModuleConfigurationParams struct {
+	Module string `json:"module"`
+	Key    string `json:"key"`
+}
+
+func (q *Queries) DeleteModuleConfiguration(ctx context.Context, arg DeleteModuleConfigurationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModuleConfiguration, arg.Module, arg.Key)
+	return err
+}
+
 const findObservations = `-- name: FindObservations :many
 select
   id, channel_id, project_id, created_at, updated_at
@@ -82,6 +98,60 @@ func (q *Queries) FindObservations(ctx context.Context, arg FindObservationsPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getModuleConfiguration = `-- name: GetModuleConfiguration :one
+select
+  module, "key", options
+from
+  module_configuration
+where
+  module = ?
+  and key = ?
+`
+
+type GetModuleConfigurationParams struct {
+	Module string `json:"module"`
+	Key    string `json:"key"`
+}
+
+func (q *Queries) GetModuleConfiguration(ctx context.Context, arg GetModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, getModuleConfiguration, arg.Module, arg.Key)
+	var i ModuleConfiguration
+	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	return i, err
+}
+
+const getModuleConfigurations = `-- name: GetModuleConfigurations :many
+select
+  module, "key", options
+from
+  module_configuration
+where
+  module = ?
+`
+
+func (q *Queries) GetModuleConfigurations(ctx context.Context, module string) ([]ModuleConfiguration, error) {
+	rows, err := q.db.QueryContext(ctx, getModuleConfigurations, module)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ModuleConfiguration
+	for rows.Next() {
+		var i ModuleConfiguration
+		if err := rows.Scan(&i.Module, &i.Key, &i.Options); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -146,5 +216,25 @@ func (q *Queries) SaveFeaturedMessage(ctx context.Context, arg SaveFeaturedMessa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const saveModuleConfiguration = `-- name: SaveModuleConfiguration :one
+insert into module_configuration (module, key, options)
+  values (?, ?, ?)
+returning
+  module, "key", options
+`
+
+type SaveModuleConfigurationParams struct {
+	Module  string      `json:"module"`
+	Key     string      `json:"key"`
+	Options interface{} `json:"options"`
+}
+
+func (q *Queries) SaveModuleConfiguration(ctx context.Context, arg SaveModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, saveModuleConfiguration, arg.Module, arg.Key, arg.Options)
+	var i ModuleConfiguration
+	err := row.Scan(&i.Module, &i.Key, &i.Options)
 	return i, err
 }

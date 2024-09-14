@@ -16,6 +16,12 @@ type FeaturedMessage struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type ModuleConfiguration struct {
+	Module  string      `json:"module"`
+	Key     string      `json:"key"`
+	Options interface{} `json:"options"`
+}
+
 type SeenObservation struct {
 	ID        int64     `json:"id"`
 	ChannelID string    `json:"channel_id"`

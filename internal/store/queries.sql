@@ -34,3 +34,31 @@ insert
     values (?, ?, ?)
   returning
     *;
+
+-- name: GetModuleConfiguration :one
+select
+  *
+from
+  module_configuration
+where
+  module = ?
+  and key = ?;
+
+-- name: GetModuleConfigurations :many
+select
+  *
+from
+  module_configuration
+where
+  module = ?;
+
+-- name: SaveModuleConfiguration :one
+insert into module_configuration (module, key, options)
+  values (?, ?, ?)
+returning
+  *;
+
+-- name: DeleteModuleConfiguration :exec
+delete from module_configuration
+where module = ?
+  and key = ?;

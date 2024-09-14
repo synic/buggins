@@ -9,27 +9,14 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"slices"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
-	"go.uber.org/fx"
 
-	"github.com/synic/buggins/internal/conf"
-	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/pkg/inat"
 	"github.com/synic/buggins/internal/store"
 )
-
-type ChannelOptions struct {
-	ID          string `mapstructure:"id"`
-	CronPattern string `mapstructure:"cron_pattern"`
-	ProjectID   int64  `mapstructure:"inat_project_id"`
-}
-
-type Options struct {
-	Channels []ChannelOptions `mapstructure:"channels"`
-	PageSize int              `mapstructure:"page_size"`
-}
 
 type Module struct {
 	api                     inat.Api
@@ -37,60 +24,80 @@ type Module struct {
 	store                   *store.Queries
 	displayedObservers      map[string][]int64
 	options                 Options
+	crons                   []*cron.Cron
 	isStarted               bool
 	slashCommandsRegistered bool
+	mu                      sync.Mutex
 }
 
-type providerResult struct {
-	fx.Out
-	Module m.Module `group:"modules"`
-}
+func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
+	options, err := getModuleOptions(db)
+	if err != nil {
+		return &Module{}, err
+	}
 
-func New(discord *discordgo.Session, db *store.Queries, options Options) *Module {
 	return &Module{
 		options:            options,
 		discord:            discord,
 		api:                inat.New(),
 		store:              db,
 		displayedObservers: make(map[string][]int64),
-	}
+		crons:              make([]*cron.Cron, 0),
+	}, nil
 }
 
-func Provider(c conf.Config,
-	discord *discordgo.Session,
-	db *store.Queries,
-) (providerResult, error) {
-	var options Options
-	err := c.Populate("inatobs", &options)
-
-	if err != nil {
-		return providerResult{}, err
-	}
-
-	return providerResult{Module: New(discord, db, options)}, nil
+func (m *Module) GetOptions() Options {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.options
 }
 
 func (m *Module) Start() {
 	if !m.isStarted {
 		log.Println("started inatobs module")
+		log.Printf(" -> channels: %+v", m.GetOptions().Channels)
 		m.isStarted = true
 		m.registerHandlers()
-
-		for _, o := range m.options.Channels {
-			pattern := o.CronPattern
-			if pattern == "" {
-				pattern = "0 * * * *"
-			}
-
-			c := cron.New()
-			c.AddFunc(pattern, func() { m.Post(o.ID) })
-			c.Start()
-		}
+		m.startCrons()
 	}
 }
 
-func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
+func (m *Module) startCrons() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, c := range m.crons {
+		c.Stop()
+	}
+	m.crons = make([]*cron.Cron, len(m.options.Channels))
 	for _, o := range m.options.Channels {
+		pattern := o.CronPattern
+		c := cron.New()
+		c.AddFunc(pattern, func() { m.Post(o.ID) })
+		c.Start()
+		m.crons = append(m.crons, c)
+	}
+}
+
+func (m *Module) GetName() string {
+	return moduleName
+}
+
+func (m *Module) ReloadConfig(db *store.Queries) error {
+	m.mu.Lock()
+	options, err := getModuleOptions(db)
+	if err != nil {
+		return err
+	}
+
+	m.options = options
+	m.mu.Unlock()
+	m.startCrons()
+
+	return nil
+}
+
+func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
+	for _, o := range m.GetOptions().Channels {
 		if o.ID == channelID {
 			return o, nil
 		}
@@ -104,7 +111,7 @@ func (m *Module) registerHandlers() {
 		m.registerSlashCommands()
 	} else {
 		m.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-			log.Println("Discord connection detected, registering slash commands for inatobs")
+			log.Println(" -> discord connection detected, registering slash commands for inatobs")
 			m.registerSlashCommands()
 		})
 	}
@@ -137,7 +144,7 @@ func (m *Module) registerHandlers() {
 
 func (m *Module) registerSlashCommands() {
 	if !m.discord.DataReady {
-		fmt.Println("Cannot register inatobs slash commands, websocket not yet connected")
+		fmt.Println("cannot register inatobs slash commands, websocket not yet connected")
 		return
 	}
 
@@ -159,7 +166,7 @@ func (m *Module) registerSlashCommands() {
 		log.Printf("error creating /loadinat command: %v", err)
 	}
 
-	log.Println("inatobs slash commands registered")
+	log.Println(" -> inatobs slash commands registered")
 }
 
 func (m *Module) findUnseenObservation(
@@ -174,7 +181,7 @@ func (m *Module) findUnseenObservation(
 
 	observations, err := m.api.FetchRecentProjectObservations(
 		options.ProjectID,
-		m.options.PageSize,
+		options.PageSize,
 		200,
 	)
 

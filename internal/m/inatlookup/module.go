@@ -6,66 +6,40 @@ import (
 	"log"
 	"regexp"
 	"slices"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"go.uber.org/fx"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"github.com/synic/buggins/internal/conf"
-	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/pkg/inat"
+	"github.com/synic/buggins/internal/store"
 )
 
 type commandHandler = func(*discordgo.Session, *discordgo.MessageCreate, string)
 
 var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
-type GuildOptions struct {
-	CommandPrefixRegex *regexp.Regexp
-	Name               string   `mapstructure:"name"`
-	ID                 string   `mapstructure:"id"`
-	CommandPrefix      string   `mapstructure:"command_prefix"`
-	Channels           []string `mapstructure:"channels"`
-}
-
-type Options struct {
-	Guilds []GuildOptions `mapstructure:"guilds"`
-}
-
 type Module struct {
 	api       inat.Api
 	discord   *discordgo.Session
 	options   Options
 	isStarted bool
+	mu        sync.Mutex
 }
 
-type providerResult struct {
-	fx.Out
-	Module m.Module `group:"modules"`
-}
-
-func New(discord *discordgo.Session, options Options) *Module {
-	return &Module{options: options, api: inat.New(), discord: discord}
-}
-
-func Provider(
-	c conf.Config,
-	discord *discordgo.Session,
-) (providerResult, error) {
-	var options Options
-	err := c.Populate("inatlookup", &options)
-
+func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
+	options, err := getModuleOptions(db)
 	if err != nil {
-		return providerResult{}, err
+		return &Module{}, err
 	}
 
-	return providerResult{Module: New(discord, options)}, nil
+	return &Module{options: options, api: inat.New(), discord: discord}, nil
 }
 
 func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
-	for _, o := range m.options.Guilds {
+	for _, o := range m.GetOptions().Guilds {
 		if o.ID == guildID {
 			return o, nil
 		}
@@ -74,52 +48,62 @@ func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
 	return GuildOptions{}, errors.New("guild not configured")
 }
 
-func (b *Module) Start() {
-	if !b.isStarted {
-		b.isStarted = true
-		b.registerHandlers()
+func (m *Module) GetOptions() Options {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.options
+}
+
+func (m *Module) Start() {
+	if !m.isStarted {
+		m.isStarted = true
+		m.registerHandlers()
 		log.Print("started inatlookup module")
+		log.Printf(" -> guilds: %+v", m.GetOptions().Guilds)
 	}
 }
 
-func (b *Module) registerHandlers() {
-	for i, o := range b.options.Guilds {
-		if o.CommandPrefix == "" {
-			o.CommandPrefix = ","
-		}
-		re, err := regexp.Compile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, o.CommandPrefix))
-		if err != nil {
-			log.Printf("error compiling cmd prefix for guild %s: %v", o.ID, err)
-			continue
-		}
-		o.CommandPrefixRegex = re
-		if slices.Contains(o.Channels, "all") {
-			o.Channels = []string{}
-		}
-		b.options.Guilds[i] = o
+func (m *Module) GetName() string {
+	return moduleName
+}
+
+func (m *Module) ReloadConfig(db *store.Queries) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	options, err := getModuleOptions(db)
+	if err != nil {
+		return err
 	}
+
+	m.options = options
+	return nil
+}
+
+func (m *Module) registerHandlers() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	handlers := map[string]commandHandler{
-		"t": b.lookupTaxa,
+		"t": m.lookupTaxa,
 	}
 
-	b.discord.AddHandler(func(d *discordgo.Session, m *discordgo.MessageCreate) {
-		options, err := b.getGuildOptions(m.GuildID)
+	m.discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
+		options, err := m.getGuildOptions(msg.GuildID)
 
 		if err != nil {
 			return
 		}
 
-		if len(options.Channels) > 0 && !slices.Contains(options.Channels, m.ChannelID) {
+		if len(options.Channels) > 0 && !slices.Contains(options.Channels, msg.ChannelID) {
 			return
 		}
 
 		if options.CommandPrefixRegex == nil {
-			log.Printf("guild %s does not have a valid command prefix", m.GuildID)
+			log.Printf("guild %s does not have a valid command prefix", msg.GuildID)
 			return
 		}
 
-		matches := options.CommandPrefixRegex.FindStringSubmatch(m.Content)
+		matches := options.CommandPrefixRegex.FindStringSubmatch(msg.Content)
 
 		if matches != nil {
 			command := matches[1]
@@ -128,30 +112,30 @@ func (b *Module) registerHandlers() {
 			handler, ok := handlers[command]
 
 			if ok {
-				handler(d, m, content)
+				handler(d, msg, content)
 			}
 		}
 
-		matches = inlineTaxaSearchRe.FindStringSubmatch(m.Content)
+		matches = inlineTaxaSearchRe.FindStringSubmatch(msg.Content)
 
 		if matches != nil {
 			handler, ok := handlers["t"]
 
 			if ok {
-				handler(d, m, matches[1])
+				handler(d, msg, matches[1])
 			}
 		}
 	})
 }
 
-func (b *Module) lookupTaxa(d *discordgo.Session, m *discordgo.MessageCreate, content string) {
-	r, err := b.api.Search([]string{"taxa"}, content)
+func (m *Module) lookupTaxa(d *discordgo.Session, msg *discordgo.MessageCreate, content string) {
+	r, err := m.api.Search([]string{"taxa"}, content)
 
 	if err == nil && len(r.Results) > 0 {
 		r := r.Results[0].Record
 		p := message.NewPrinter(language.English)
 
-		b.discord.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
+		m.discord.ChannelMessageSendComplex(msg.ChannelID, &discordgo.MessageSend{
 			Embed: &discordgo.MessageEmbed{
 				Thumbnail: &discordgo.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumURL},
 				Color:     5763719,
