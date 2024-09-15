@@ -1,9 +1,13 @@
 package m
 
-import "github.com/synic/buggins/internal/store"
+import (
+	"github.com/bwmarrin/discordgo"
+
+	"github.com/synic/buggins/internal/store"
+)
 
 type Module interface {
-	Start()
-	ReloadConfig(*store.Queries) error
-	GetName() string
+	Start(*discordgo.Session) error
+	ReloadConfig(*discordgo.Session, *store.Queries) error
+	Name() string
 }

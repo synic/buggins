@@ -15,46 +15,50 @@ import (
 var emojis = []string{"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"}
 
 type Module struct {
-	discord   *discordgo.Session
-	options   Options
-	isStarted bool
-	mu        sync.Mutex
+	options     Options
+	isStarted   bool
+	optionsLock sync.RWMutex
 }
 
-func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
-	options, err := getModuleOptions(db)
+func New(db *store.Queries) (*Module, error) {
+	options, err := fetchModuleOptions(db)
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse thisthat options: %w", err)
 	}
 
-	return &Module{options: options, discord: discord}, nil
+	return &Module{options: options}, nil
 }
 
-func (m *Module) GetName() string {
+func (m *Module) Name() string {
 	return moduleName
 }
 
-func (m *Module) GetOptions() Options {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) Options() Options {
+	m.optionsLock.RLock()
+	defer m.optionsLock.RUnlock()
 	return m.options
 }
 
-func (m *Module) ReloadConfig(db *store.Queries) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	options, err := getModuleOptions(db)
+func (m *Module) SetOptions(options Options) {
+	m.optionsLock.Lock()
+	defer m.optionsLock.Unlock()
+	m.options = options
+}
+
+func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) error {
+	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return err
 	}
 
-	m.options = options
+	m.SetOptions(options)
+	log.Printf(" -> channels: %+v", m.Options().Channels)
 	return nil
 }
 
 func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
-	for _, o := range m.GetOptions().Channels {
+	for _, o := range m.Options().Channels {
 		if o.ID == channelID {
 			return o, nil
 		}
@@ -63,24 +67,25 @@ func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
 	return ChannelOptions{}, errors.New("channel options not found")
 }
 
-func (m *Module) Start() {
+func (m *Module) Start(discord *discordgo.Session) error {
 	if !m.isStarted {
 		m.isStarted = true
 		log.Println("started thisthat module")
-		log.Printf(" -> channels: %+v", m.GetOptions().Channels)
-		m.registerHandlers()
+		log.Printf(" -> channels: %+v", m.Options().Channels)
+		m.registerHandlers(discord)
 	}
+	return nil
 }
 
-func (m *Module) registerHandlers() {
-	m.discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
+func (m *Module) registerHandlers(discord *discordgo.Session) {
+	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
 		options, err := m.getChannelOptions(msg.ChannelID)
 
 		if err != nil {
 			return
 		}
 
-		if msg.ChannelID != options.ID || msg.Author.ID == m.discord.State.User.ID {
+		if msg.ChannelID != options.ID || msg.Author.ID == discord.State.User.ID {
 			return
 		}
 

@@ -10,6 +10,26 @@ import (
 	"strings"
 )
 
+const createModuleConfiguration = `-- name: CreateModuleConfiguration :one
+insert into module_configuration (module, key, options)
+  values (?, ?, ?)
+returning
+  module, "key", options
+`
+
+type CreateModuleConfigurationParams struct {
+	Module  string      `json:"module"`
+	Key     string      `json:"key"`
+	Options interface{} `json:"options"`
+}
+
+func (q *Queries) CreateModuleConfiguration(ctx context.Context, arg CreateModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, createModuleConfiguration, arg.Module, arg.Key, arg.Options)
+	var i ModuleConfiguration
+	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	return i, err
+}
+
 const createSeenObservation = `-- name: CreateSeenObservation :one
 insert
   or ignore into seen_observation (id, channel_id, project_id)
@@ -37,10 +57,12 @@ func (q *Queries) CreateSeenObservation(ctx context.Context, arg CreateSeenObser
 	return i, err
 }
 
-const deleteModuleConfiguration = `-- name: DeleteModuleConfiguration :exec
+const deleteModuleConfiguration = `-- name: DeleteModuleConfiguration :one
 delete from module_configuration
 where module = ?
   and key = ?
+returning
+  module, "key", options
 `
 
 type DeleteModuleConfigurationParams struct {
@@ -48,9 +70,92 @@ type DeleteModuleConfigurationParams struct {
 	Key    string `json:"key"`
 }
 
-func (q *Queries) DeleteModuleConfiguration(ctx context.Context, arg DeleteModuleConfigurationParams) error {
-	_, err := q.db.ExecContext(ctx, deleteModuleConfiguration, arg.Module, arg.Key)
-	return err
+func (q *Queries) DeleteModuleConfiguration(ctx context.Context, arg DeleteModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, deleteModuleConfiguration, arg.Module, arg.Key)
+	var i ModuleConfiguration
+	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	return i, err
+}
+
+const findIsMessageFeatured = `-- name: FindIsMessageFeatured :one
+select
+  exists (
+    select
+      1
+    from
+      featured_message
+    where
+      channel_id = ?
+      and message_id = ?
+      and guild_id = ?
+    limit 1)
+`
+
+type FindIsMessageFeaturedParams struct {
+	ChannelID string `json:"channel_id"`
+	MessageID string `json:"message_id"`
+	GuildID   string `json:"guild_id"`
+}
+
+func (q *Queries) FindIsMessageFeatured(ctx context.Context, arg FindIsMessageFeaturedParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, findIsMessageFeatured, arg.ChannelID, arg.MessageID, arg.GuildID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const findModuleConfiguration = `-- name: FindModuleConfiguration :one
+select
+  module, "key", options
+from
+  module_configuration
+where
+  module = ?
+  and key = ?
+`
+
+type FindModuleConfigurationParams struct {
+	Module string `json:"module"`
+	Key    string `json:"key"`
+}
+
+func (q *Queries) FindModuleConfiguration(ctx context.Context, arg FindModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, findModuleConfiguration, arg.Module, arg.Key)
+	var i ModuleConfiguration
+	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	return i, err
+}
+
+const findModuleConfigurations = `-- name: FindModuleConfigurations :many
+select
+  module, "key", options
+from
+  module_configuration
+where
+  module = ?
+`
+
+func (q *Queries) FindModuleConfigurations(ctx context.Context, module string) ([]ModuleConfiguration, error) {
+	rows, err := q.db.QueryContext(ctx, findModuleConfigurations, module)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ModuleConfiguration
+	for rows.Next() {
+		var i ModuleConfiguration
+		if err := rows.Scan(&i.Module, &i.Key, &i.Options); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const findObservations = `-- name: FindObservations :many
@@ -111,87 +216,6 @@ func (q *Queries) FindObservations(ctx context.Context, arg FindObservationsPara
 	return items, nil
 }
 
-const getModuleConfiguration = `-- name: GetModuleConfiguration :one
-select
-  module, "key", options
-from
-  module_configuration
-where
-  module = ?
-  and key = ?
-`
-
-type GetModuleConfigurationParams struct {
-	Module string `json:"module"`
-	Key    string `json:"key"`
-}
-
-func (q *Queries) GetModuleConfiguration(ctx context.Context, arg GetModuleConfigurationParams) (ModuleConfiguration, error) {
-	row := q.db.QueryRowContext(ctx, getModuleConfiguration, arg.Module, arg.Key)
-	var i ModuleConfiguration
-	err := row.Scan(&i.Module, &i.Key, &i.Options)
-	return i, err
-}
-
-const getModuleConfigurations = `-- name: GetModuleConfigurations :many
-select
-  module, "key", options
-from
-  module_configuration
-where
-  module = ?
-`
-
-func (q *Queries) GetModuleConfigurations(ctx context.Context, module string) ([]ModuleConfiguration, error) {
-	rows, err := q.db.QueryContext(ctx, getModuleConfigurations, module)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ModuleConfiguration
-	for rows.Next() {
-		var i ModuleConfiguration
-		if err := rows.Scan(&i.Module, &i.Key, &i.Options); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const isMessageFeatured = `-- name: IsMessageFeatured :one
-select
-  exists (
-    select
-      1
-    from
-      featured_message
-    where
-      channel_id = ?
-      and message_id = ?
-      and guild_id = ?
-    limit 1)
-`
-
-type IsMessageFeaturedParams struct {
-	ChannelID string `json:"channel_id"`
-	MessageID string `json:"message_id"`
-	GuildID   string `json:"guild_id"`
-}
-
-func (q *Queries) IsMessageFeatured(ctx context.Context, arg IsMessageFeaturedParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, isMessageFeatured, arg.ChannelID, arg.MessageID, arg.GuildID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const saveFeaturedMessage = `-- name: SaveFeaturedMessage :one
 insert
   or ignore into featured_message (message_id, channel_id, guild_id)
@@ -219,21 +243,26 @@ func (q *Queries) SaveFeaturedMessage(ctx context.Context, arg SaveFeaturedMessa
 	return i, err
 }
 
-const saveModuleConfiguration = `-- name: SaveModuleConfiguration :one
-insert into module_configuration (module, key, options)
-  values (?, ?, ?)
+const updateModuleConfiguration = `-- name: UpdateModuleConfiguration :one
+update
+  module_configuration
+set
+  options = ?
+where
+  key = ?
+  and module = ?
 returning
   module, "key", options
 `
 
-type SaveModuleConfigurationParams struct {
-	Module  string      `json:"module"`
-	Key     string      `json:"key"`
+type UpdateModuleConfigurationParams struct {
 	Options interface{} `json:"options"`
+	Key     string      `json:"key"`
+	Module  string      `json:"module"`
 }
 
-func (q *Queries) SaveModuleConfiguration(ctx context.Context, arg SaveModuleConfigurationParams) (ModuleConfiguration, error) {
-	row := q.db.QueryRowContext(ctx, saveModuleConfiguration, arg.Module, arg.Key, arg.Options)
+func (q *Queries) UpdateModuleConfiguration(ctx context.Context, arg UpdateModuleConfigurationParams) (ModuleConfiguration, error) {
+	row := q.db.QueryRowContext(ctx, updateModuleConfiguration, arg.Options, arg.Key, arg.Module)
 	var i ModuleConfiguration
 	err := row.Scan(&i.Module, &i.Key, &i.Options)
 	return i, err

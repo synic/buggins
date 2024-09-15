@@ -3,9 +3,9 @@ tmp_dir = ".tmp"
 
 [build]
   args_bin = []
-  bin = "./bin/bot start"
+  bin = "./bin/bot start --start-ipc"
   cmd = "make build"
-  delay = 1000
+  delay = 500
   exclude_dir = ["logs", "bin"]
   exclude_file = ["Dockerfile"]
   exclude_regex = ["_test.go", ".null-ls"]
@@ -15,7 +15,7 @@ tmp_dir = ".tmp"
   include_dir = []
   include_ext = ["go", "sql"]
   include_file = []
-  kill_delay = "0s"
+  kill_delay = 8000000000
   log = "logs/build-errors.log"
   poll = false
   poll_interval = 0
@@ -23,8 +23,8 @@ tmp_dir = ".tmp"
   pre_cmd = []
   rerun = false
   rerun_delay = 500
-  send_interrupt = false
-  stop_on_error = false
+  send_interrupt = true
+  stop_on_error = true
 
 [color]
   app = ""

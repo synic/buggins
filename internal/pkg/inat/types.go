@@ -33,7 +33,7 @@ type Observation struct {
 	UserID     int64            `json:"user_id"`
 }
 
-func (o Observation) GetTaxonNames() (string, string) {
+func (o Observation) TaxonNames() (string, string) {
 	taxonName := "unknown"
 	commonName := "unknown"
 	taxon := o.Taxon

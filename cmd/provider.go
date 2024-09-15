@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/spf13/viper"
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
 
+	"github.com/synic/buggins/internal/ipc/v1"
 	"github.com/synic/buggins/internal/m"
 	"github.com/synic/buggins/internal/m/featured"
 	"github.com/synic/buggins/internal/m/inatlookup"
@@ -17,64 +19,126 @@ import (
 	"github.com/synic/buggins/internal/store"
 )
 
-type bot struct{ modules []m.Module }
-type botParams struct {
-	fx.In
-
-	Lifecycle fx.Lifecycle
-	Discord   *discordgo.Session
-	Modules   []m.Module `group:"modules"`
-}
-
-func getProviders() fx.Option {
+func getProviders(databaseURL string) fx.Option {
 	return fx.Options(
-		fx.Provide(newDiscordSession),
-		fx.Provide(newDatabase),
+		fx.Provide(newDatabase(databaseURL)),
 		fx.Provide(featured.Provider),
 		fx.Provide(inatobs.Provider),
 		fx.Provide(inatlookup.Provider),
 		fx.Provide(thisthat.Provider),
-		fx.Provide(newBot),
+		fx.Provide(newModuleManager),
 	)
 }
 
-func newDiscordSession() (*discordgo.Session, error) {
-	token := viper.GetString("DiscordToken")
-	if token == "" {
-		log.Fatalln("Discord token not set. Pass --discord-token or set $DISCORD_TOKEN")
-	}
-	return discordgo.New(fmt.Sprintf("Bot %s", token))
-}
+func newDiscordSession(
+	token string,
+) func(fx.Lifecycle, *m.ModuleManager) (*discordgo.Session, error) {
+	return func(lc fx.Lifecycle, bot *m.ModuleManager) (*discordgo.Session, error) {
+		discord, err := discordgo.New(fmt.Sprintf("Bot %s", token))
 
-func newBot(params botParams) bot {
-	params.Lifecycle.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			params.Discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-				log.Printf("User '%s' connected to discord!", r.User.Username)
+		if err != nil {
+			return nil, err
+		}
 
-				for _, module := range params.Modules {
-					module.Start()
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+					log.Printf("User '%s' connected to discord!", r.User.Username)
+
+					for _, module := range bot.Modules() {
+						module.Start(discord)
+					}
+				})
+
+				if err := discord.Open(); err != nil {
+					return err
 				}
-			})
 
-			if err := params.Discord.Open(); err != nil {
-				return err
-			}
+				log.Println("started discord bot")
 
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			if err := params.Discord.Close(); err != nil {
-				return err
-			}
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				log.Println("closing discord connection...")
+				if err := discord.Close(); err != nil {
+					return err
+				}
 
-			return nil
-		},
-	})
+				return nil
+			},
+		})
 
-	return bot{modules: params.Modules}
+		return discord, nil
+	}
 }
 
-func newDatabase() (*store.Queries, error) {
-	return store.Init(viper.GetString("DatabaseURL"))
+func newModuleManager(params m.ModuleManagerParams) (*m.ModuleManager, error) {
+	return m.NewManager(params.Modules)
+}
+
+func newDatabase(url string) func() (*store.Queries, error) {
+	return func() (*store.Queries, error) {
+		return store.Init(url)
+	}
+}
+
+func startIpcService(
+	bind string,
+) func(
+	fx.Lifecycle,
+	*discordgo.Session,
+	*m.ModuleManager,
+	*store.Queries,
+) (*ipc.Service, error) {
+	return func(
+		lc fx.Lifecycle,
+		discord *discordgo.Session,
+		manager *m.ModuleManager,
+		db *store.Queries,
+	) (*ipc.Service, error) {
+		var opts []grpc.ServerOption
+		service, err := ipc.New(discord, db, manager)
+		if err != nil {
+			return nil, err
+		}
+
+		lis, err := net.Listen("unix", bind)
+
+		if err != nil {
+			return nil, err
+		}
+
+		grpcServer := grpc.NewServer(opts...)
+		ipc.RegisterIpcServiceServer(grpcServer, service)
+
+		log.Printf("ipc service serving on %s", bind)
+
+		lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				go grpcServer.Serve(lis)
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				log.Println("stopping IPC service...")
+				grpcServer.Stop()
+				lis.Close()
+				return nil
+			},
+		})
+
+		return service, nil
+	}
+}
+
+func provideIpcService(
+	bind string,
+) fx.Option {
+	if bind == "" {
+		return fx.Options()
+	}
+
+	return fx.Options(
+		fx.Provide(startIpcService(bind)),
+		fx.Invoke(func(*ipc.Service) {}),
+	)
 }

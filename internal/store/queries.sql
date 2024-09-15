@@ -15,7 +15,7 @@ insert
   returning
     *;
 
--- name: IsMessageFeatured :one
+-- name: FindIsMessageFeatured :one
 select
   exists (
     select
@@ -35,7 +35,7 @@ insert
   returning
     *;
 
--- name: GetModuleConfiguration :one
+-- name: FindModuleConfiguration :one
 select
   *
 from
@@ -44,7 +44,7 @@ where
   module = ?
   and key = ?;
 
--- name: GetModuleConfigurations :many
+-- name: FindModuleConfigurations :many
 select
   *
 from
@@ -52,13 +52,26 @@ from
 where
   module = ?;
 
--- name: SaveModuleConfiguration :one
+-- name: CreateModuleConfiguration :one
 insert into module_configuration (module, key, options)
   values (?, ?, ?)
 returning
   *;
 
--- name: DeleteModuleConfiguration :exec
+-- name: UpdateModuleConfiguration :one
+update
+  module_configuration
+set
+  options = ?
+where
+  key = ?
+  and module = ?
+returning
+  *;
+
+-- name: DeleteModuleConfiguration :one
 delete from module_configuration
 where module = ?
-  and key = ?;
+  and key = ?
+returning
+  *;

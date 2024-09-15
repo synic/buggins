@@ -26,3 +26,6 @@
 
 # configs
 /config.yaml
+
+# sockets
+*.sock

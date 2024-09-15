@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package ipc.v1;
+
+import "google/protobuf/empty.proto";
+option go_package = "./;ipc";
+
+message ReloadConfigurationRequest {
+  string module = 1;
+}
+
+service IpcService {
+  rpc ReloadConfiguration(ReloadConfigurationRequest) returns (google.protobuf.Empty) {}
+}

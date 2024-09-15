@@ -20,84 +20,90 @@ import (
 
 type Module struct {
 	api                     inat.Api
-	discord                 *discordgo.Session
-	store                   *store.Queries
+	db                      *store.Queries
 	displayedObservers      map[string][]int64
 	options                 Options
 	crons                   []*cron.Cron
 	isStarted               bool
 	slashCommandsRegistered bool
-	mu                      sync.Mutex
+	optionsLock             sync.RWMutex
+	cronsLock               sync.Mutex
+	displayedObserversLock  sync.RWMutex
 }
 
-func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
-	options, err := getModuleOptions(db)
+func New(db *store.Queries) (*Module, error) {
+	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return &Module{}, err
 	}
 
 	return &Module{
 		options:            options,
-		discord:            discord,
 		api:                inat.New(),
-		store:              db,
+		db:                 db,
 		displayedObservers: make(map[string][]int64),
 		crons:              make([]*cron.Cron, 0),
 	}, nil
 }
 
-func (m *Module) GetOptions() Options {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) Options() Options {
+	m.optionsLock.RLock()
+	defer m.optionsLock.RUnlock()
 	return m.options
 }
 
-func (m *Module) Start() {
-	if !m.isStarted {
-		log.Println("started inatobs module")
-		log.Printf(" -> channels: %+v", m.GetOptions().Channels)
-		m.isStarted = true
-		m.registerHandlers()
-		m.startCrons()
-	}
+func (m *Module) SetOptions(options Options) {
+	m.optionsLock.Lock()
+	defer m.optionsLock.Unlock()
+	m.options = options
 }
 
-func (m *Module) startCrons() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) Start(discord *discordgo.Session) error {
+	if !m.isStarted {
+		log.Println("started inatobs module")
+		log.Printf(" -> channels: %+v", m.Options().Channels)
+		m.isStarted = true
+		m.registerHandlers(discord)
+		m.startCrons(discord)
+	}
+	return nil
+}
+
+func (m *Module) startCrons(discord *discordgo.Session) {
+	m.cronsLock.Lock()
+	defer m.cronsLock.Unlock()
 	for _, c := range m.crons {
 		c.Stop()
 	}
-	m.crons = make([]*cron.Cron, len(m.options.Channels))
+	m.crons = make([]*cron.Cron, 0, len(m.options.Channels))
 	for _, o := range m.options.Channels {
 		pattern := o.CronPattern
 		c := cron.New()
-		c.AddFunc(pattern, func() { m.Post(o.ID) })
+		c.AddFunc(pattern, func() { m.Post(discord, o.ID) })
 		c.Start()
 		m.crons = append(m.crons, c)
 	}
 }
 
-func (m *Module) GetName() string {
+func (m *Module) Name() string {
 	return moduleName
 }
 
-func (m *Module) ReloadConfig(db *store.Queries) error {
-	m.mu.Lock()
-	options, err := getModuleOptions(db)
+func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) error {
+	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return err
 	}
 
-	m.options = options
-	m.mu.Unlock()
-	m.startCrons()
+	m.SetOptions(options)
+	m.startCrons(discord)
+	log.Printf(" -> channels: %+v", m.Options().Channels)
 
 	return nil
 }
 
 func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
-	for _, o := range m.GetOptions().Channels {
+	for _, o := range m.Options().Channels {
 		if o.ID == channelID {
 			return o, nil
 		}
@@ -106,17 +112,17 @@ func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
 	return ChannelOptions{}, errors.New("channel options not found")
 }
 
-func (m *Module) registerHandlers() {
-	if m.discord.DataReady {
-		m.registerSlashCommands()
+func (m *Module) registerHandlers(discord *discordgo.Session) {
+	if discord.DataReady {
+		m.registerSlashCommands(discord)
 	} else {
-		m.discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
+		discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 			log.Println(" -> discord connection detected, registering slash commands for inatobs")
-			m.registerSlashCommands()
+			m.registerSlashCommands(discord)
 		})
 	}
 
-	m.discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
+	discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
 		_, err := m.getChannelOptions(i.ChannelID)
 
 		if err != nil {
@@ -130,7 +136,7 @@ func (m *Module) registerHandlers() {
 
 		if i.ApplicationCommandData().Name == "loadinat" {
 			log.Println("/loadinat called, loading observation to display")
-			go m.Post(i.ChannelID)
+			go m.Post(discord, i.ChannelID)
 
 			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -142,8 +148,8 @@ func (m *Module) registerHandlers() {
 	})
 }
 
-func (m *Module) registerSlashCommands() {
-	if !m.discord.DataReady {
+func (m *Module) registerSlashCommands(discord *discordgo.Session) {
+	if !discord.DataReady {
 		fmt.Println("cannot register inatobs slash commands, websocket not yet connected")
 		return
 	}
@@ -160,7 +166,7 @@ func (m *Module) registerSlashCommands() {
 		DefaultMemberPermissions: &adminPermissions,
 	}
 
-	_, err := m.discord.ApplicationCommandCreate(m.discord.State.Application.ID, "", &command)
+	_, err := discord.ApplicationCommandCreate(discord.State.Application.ID, "", &command)
 
 	if err != nil {
 		log.Printf("error creating /loadinat command: %v", err)
@@ -202,7 +208,7 @@ func (m *Module) findUnseenObservation(
 	return o, nil
 }
 
-func (m *Module) Post(channelID string) {
+func (m *Module) Post(discord *discordgo.Session, channelID string) {
 	options, err := m.getChannelOptions(channelID)
 
 	if err != nil {
@@ -217,7 +223,7 @@ func (m *Module) Post(channelID string) {
 		return
 	}
 
-	taxonName, commonName := o.GetTaxonNames()
+	taxonName, commonName := o.TaxonNames()
 
 	fields := make([]*discordgo.MessageEmbedField, 0)
 	fields = append(fields, &discordgo.MessageEmbedField{
@@ -253,7 +259,7 @@ func (m *Module) Post(channelID string) {
 		})
 	}
 
-	m.discord.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+	discord.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
 		Files: files,
 		Embed: &discordgo.MessageEmbed{
 			URL:   fmt.Sprintf("https://inaturalist.org/observations/%d", o.ID),
@@ -273,6 +279,19 @@ func (m *Module) Post(channelID string) {
 	m.markObservationAsSeen(context.Background(), channelID, o)
 }
 
+func (m *Module) getDisplayedObservers(channelID string) ([]int64, bool) {
+	m.displayedObserversLock.RLock()
+	defer m.displayedObserversLock.RUnlock()
+	items, ok := m.displayedObservers[channelID]
+	return items, ok
+}
+
+func (m *Module) setDisplayedObservers(channelID string, do []int64) {
+	m.displayedObserversLock.Lock()
+	defer m.displayedObserversLock.Unlock()
+	m.displayedObservers[channelID] = do
+}
+
 func (m *Module) markObservationAsSeen(
 	ctx context.Context,
 	channelID string,
@@ -284,7 +303,7 @@ func (m *Module) markObservationAsSeen(
 		return store.SeenObservation{}, err
 	}
 
-	displayed, ok := m.displayedObservers[channelID]
+	displayed, ok := m.getDisplayedObservers(channelID)
 
 	if !ok {
 		displayed = make([]int64, 0)
@@ -294,8 +313,8 @@ func (m *Module) markObservationAsSeen(
 		displayed = append(displayed, o.UserID)
 	}
 
-	m.displayedObservers[channelID] = displayed
-	seen, err := m.store.CreateSeenObservation(
+	m.setDisplayedObservers(channelID, displayed)
+	seen, err := m.db.CreateSeenObservation(
 		ctx,
 		store.CreateSeenObservationParams{
 			ID:        o.ID,
@@ -324,7 +343,7 @@ func (m *Module) selectUnseenObservation(
 		potentialObservers []int64
 	)
 
-	displayed, ok := m.displayedObservers[channelID]
+	displayed, ok := m.getDisplayedObservers(channelID)
 
 	if !ok {
 		displayed = make([]int64, 0)
@@ -334,7 +353,7 @@ func (m *Module) selectUnseenObservation(
 		observationIds = append(observationIds, o.ID)
 	}
 
-	seen, err := m.store.FindObservations(context.Background(), store.FindObservationsParams{
+	seen, err := m.db.FindObservations(context.Background(), store.FindObservationsParams{
 		ID:        observationIds,
 		ProjectID: projectID,
 		ChannelID: channelID,
@@ -374,7 +393,7 @@ func (m *Module) selectUnseenObservation(
 	if len(potentialObservers) <= 0 {
 		potentialObservers = slices.Collect(maps.Keys(observerMap))
 		displayed = displayed[:0]
-		m.displayedObservers[channelID] = displayed
+		m.setDisplayedObservers(channelID, displayed)
 	}
 
 	rand.Shuffle(len(potentialObservers), func(i, j int) {

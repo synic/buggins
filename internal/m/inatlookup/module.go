@@ -22,24 +22,23 @@ type commandHandler = func(*discordgo.Session, *discordgo.MessageCreate, string)
 var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
 type Module struct {
-	api       inat.Api
-	discord   *discordgo.Session
-	options   Options
-	isStarted bool
-	mu        sync.Mutex
+	api         inat.Api
+	options     Options
+	isStarted   bool
+	optionsLock sync.RWMutex
 }
 
-func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
-	options, err := getModuleOptions(db)
+func New(db *store.Queries) (*Module, error) {
+	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return &Module{}, err
 	}
 
-	return &Module{options: options, api: inat.New(), discord: discord}, nil
+	return &Module{options: options, api: inat.New()}, nil
 }
 
 func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
-	for _, o := range m.GetOptions().Guilds {
+	for _, o := range m.Options().Guilds {
 		if o.ID == guildID {
 			return o, nil
 		}
@@ -48,46 +47,52 @@ func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
 	return GuildOptions{}, errors.New("guild not configured")
 }
 
-func (m *Module) GetOptions() Options {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) Options() Options {
+	m.optionsLock.RLock()
+	defer m.optionsLock.RUnlock()
 	return m.options
 }
 
-func (m *Module) Start() {
-	if !m.isStarted {
-		m.isStarted = true
-		m.registerHandlers()
-		log.Print("started inatlookup module")
-		log.Printf(" -> guilds: %+v", m.GetOptions().Guilds)
-	}
+func (m *Module) SetOptions(options Options) {
+	m.optionsLock.Lock()
+	defer m.optionsLock.Unlock()
+	m.options = options
 }
 
-func (m *Module) GetName() string {
+func (m *Module) Start(discord *discordgo.Session) error {
+	if !m.isStarted {
+		m.isStarted = true
+		m.registerHandlers(discord)
+		log.Print("started inatlookup module")
+		log.Printf(" -> guilds: %+v", m.Options().Guilds)
+	}
+	return nil
+}
+
+func (m *Module) Name() string {
 	return moduleName
 }
 
-func (m *Module) ReloadConfig(db *store.Queries) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	options, err := getModuleOptions(db)
+func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) error {
+	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return err
 	}
 
-	m.options = options
+	m.SetOptions(options)
+	log.Printf(" -> guilds: %+v", m.Options().Guilds)
 	return nil
 }
 
-func (m *Module) registerHandlers() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) registerHandlers(discord *discordgo.Session) {
+	m.optionsLock.Lock()
+	defer m.optionsLock.Unlock()
 
 	handlers := map[string]commandHandler{
 		"t": m.lookupTaxa,
 	}
 
-	m.discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
+	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
 		options, err := m.getGuildOptions(msg.GuildID)
 
 		if err != nil {
@@ -128,14 +133,18 @@ func (m *Module) registerHandlers() {
 	})
 }
 
-func (m *Module) lookupTaxa(d *discordgo.Session, msg *discordgo.MessageCreate, content string) {
+func (m *Module) lookupTaxa(
+	discord *discordgo.Session,
+	msg *discordgo.MessageCreate,
+	content string,
+) {
 	r, err := m.api.Search([]string{"taxa"}, content)
 
 	if err == nil && len(r.Results) > 0 {
 		r := r.Results[0].Record
 		p := message.NewPrinter(language.English)
 
-		m.discord.ChannelMessageSendComplex(msg.ChannelID, &discordgo.MessageSend{
+		discord.ChannelMessageSendComplex(msg.ChannelID, &discordgo.MessageSend{
 			Embed: &discordgo.MessageEmbed{
 				Thumbnail: &discordgo.MessageEmbedThumbnail{URL: r.DefaultPhoto.MediumURL},
 				Color:     5763719,

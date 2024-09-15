@@ -15,57 +15,62 @@ import (
 )
 
 type Module struct {
-	discord   *discordgo.Session
-	db        *store.Queries
-	options   Options
-	isStarted bool
-	mu        sync.Mutex
+	db          *store.Queries
+	options     Options
+	isStarted   bool
+	optionsLock sync.RWMutex
 }
 
-func New(discord *discordgo.Session, db *store.Queries) (*Module, error) {
-	options, err := getModuleOptions(db)
+func New(db *store.Queries) (*Module, error) {
+	options, err := fetchModuleOptions(db)
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse featured options: %w", err)
 	}
 
-	return &Module{options: options, discord: discord, db: db}, nil
+	return &Module{options: options, db: db}, nil
 }
 
-func (m *Module) Start() {
+func (m *Module) Start(discord *discordgo.Session) error {
 	if !m.isStarted {
 		m.isStarted = true
-		m.registerHandlers()
+		m.registerHandlers(discord)
 		log.Println("started featured module")
-		log.Printf(" -> guilds: %+v", m.GetOptions().Guilds)
+		log.Printf(" -> guilds: %+v", m.Options().Guilds)
 	}
+	return nil
 }
 
-func (m *Module) GetName() string {
+func (m *Module) Name() string {
 	return moduleName
 }
 
-func (m *Module) GetOptions() Options {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (m *Module) Options() Options {
+	m.optionsLock.RLock()
+	defer m.optionsLock.RUnlock()
 	return m.options
 }
 
-func (m *Module) ReloadConfig(db *store.Queries) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	options, err := getModuleOptions(db)
+func (m *Module) SetOptions(options Options) {
+	m.optionsLock.Lock()
+	defer m.optionsLock.Unlock()
+	m.options = options
+}
+
+func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) error {
+	options, err := fetchModuleOptions(db)
 
 	if err != nil {
 		return fmt.Errorf("unable to parse featured options: %w", err)
 	}
 
-	m.options = options
+	m.SetOptions(options)
+	log.Printf(" -> guilds: %+v", m.Options().Guilds)
 	return nil
 }
 
 func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
-	for _, o := range m.GetOptions().Guilds {
+	for _, o := range m.Options().Guilds {
 		if o.ID == guildID {
 			return o, nil
 		}
@@ -74,8 +79,8 @@ func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
 	return GuildOptions{}, errors.New("guild not configured")
 }
 
-func (m *Module) registerHandlers() {
-	m.discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
+func (m *Module) registerHandlers(discord *discordgo.Session) {
+	discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
 		if !m.isStarted {
 			return
 		}
@@ -86,20 +91,20 @@ func (m *Module) registerHandlers() {
 			return
 		}
 
-		msg, err := m.discord.ChannelMessage(r.ChannelID, r.MessageID)
+		msg, err := d.ChannelMessage(r.ChannelID, r.MessageID)
 
 		if err != nil {
 			log.Printf("error fetching message ID `%s`: %v", r.MessageID, err)
 			return
 		}
 
-		reaction := getWinningReaction(msg.Reactions, options.RequiredReactionCount)
+		hasEnough := hasEnoughReactions(msg.Reactions, options.RequiredReactionCount)
 		imgCount := getImageAttachmentCount(msg.Attachments)
 
-		if imgCount > 0 && reaction != nil {
-			isFeatured, err := m.db.IsMessageFeatured(
+		if imgCount > 0 && hasEnough {
+			isFeatured, err := m.db.FindIsMessageFeatured(
 				context.Background(),
-				store.IsMessageFeaturedParams{
+				store.FindIsMessageFeaturedParams{
 					ChannelID: r.ChannelID,
 					MessageID: r.MessageID,
 					GuildID:   r.GuildID,
@@ -166,25 +171,16 @@ func (m *Module) registerHandlers() {
 				})
 			}
 
-			m.discord.ChannelMessageSendComplex(
+			discord.ChannelMessageSendComplex(
 				options.ChannelID,
 				&discordgo.MessageSend{
+					Content: fmt.Sprintf(
+						":partying_face: Congratulations, <@%s>, your [post](https://discord.com/channels/@me/%s/%s) made the Hall of Fame!",
+						msg.Author.ID,
+						r.ChannelID,
+						r.MessageID,
+					),
 					Files: files,
-					Embed: &discordgo.MessageEmbed{
-						Author: &discordgo.MessageEmbedAuthor{
-							Name:    msg.Author.Username,
-							IconURL: msg.Author.AvatarURL(""),
-						},
-						URL: fmt.Sprintf(
-							"https://discord.com/channels/@me/%s/%s",
-							r.ChannelID,
-							r.MessageID,
-						),
-						Title: fmt.Sprintf(
-							"%s's post had enough reactions to be included in the Hall of Fame!",
-							msg.Author.Username,
-						),
-					},
 				},
 			)
 		}
@@ -208,7 +204,10 @@ func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	return count
 }
 
-func getWinningReaction(reactions []*discordgo.MessageReactions, enough int) *discordgo.Emoji {
+func hasEnoughReactions(
+	reactions []*discordgo.MessageReactions,
+	enough int,
+) bool {
 	if enough == 0 {
 		enough = 6
 	}
@@ -219,9 +218,9 @@ func getWinningReaction(reactions []*discordgo.MessageReactions, enough int) *di
 		}
 
 		if reaction.Count >= enough {
-			return reaction.Emoji
+			return true
 		}
 	}
 
-	return nil
+	return false
 }
