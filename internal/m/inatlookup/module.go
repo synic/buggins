@@ -3,12 +3,12 @@ package inatlookup
 import (
 	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"slices"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/charmbracelet/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -23,18 +23,19 @@ var inlineTaxaSearchRe = regexp.MustCompile(`(?m) \.(\w+ ?\w+?)\. `)
 
 type Module struct {
 	api         inat.Api
+	logger      *log.Logger
 	options     Options
 	isStarted   bool
 	optionsLock sync.RWMutex
 }
 
-func New(db *store.Queries) (*Module, error) {
+func New(db *store.Queries, logger *log.Logger) (*Module, error) {
 	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return &Module{}, err
 	}
 
-	return &Module{options: options, api: inat.New()}, nil
+	return &Module{options: options, api: inat.New(), logger: logger}, nil
 }
 
 func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
@@ -63,8 +64,8 @@ func (m *Module) Start(discord *discordgo.Session) error {
 	if !m.isStarted {
 		m.isStarted = true
 		m.registerHandlers(discord)
-		log.Print("started inatlookup module")
-		log.Printf(" -> guilds: %+v", m.Options().Guilds)
+		m.logger.Info("started inatlookup module")
+		m.logger.Infof(" -> guilds: %+v", m.Options().Guilds)
 	}
 	return nil
 }
@@ -80,7 +81,7 @@ func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) err
 	}
 
 	m.SetOptions(options)
-	log.Printf(" -> guilds: %+v", m.Options().Guilds)
+	m.logger.Infof(" -> guilds: %+v", m.Options().Guilds)
 	return nil
 }
 
@@ -104,7 +105,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 		}
 
 		if options.CommandPrefixRegex == nil {
-			log.Printf("guild %s does not have a valid command prefix", msg.GuildID)
+			m.logger.Warnf("guild %s does not have a valid command prefix", msg.GuildID)
 			return
 		}
 

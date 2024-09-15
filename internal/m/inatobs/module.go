@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"maps"
 	"math/rand/v2"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/charmbracelet/log"
 	"github.com/robfig/cron/v3"
 
 	"github.com/synic/buggins/internal/pkg/inat"
@@ -20,6 +20,7 @@ import (
 
 type Module struct {
 	api                     inat.Api
+	logger                  *log.Logger
 	db                      *store.Queries
 	displayedObservers      map[string][]int64
 	options                 Options
@@ -31,7 +32,7 @@ type Module struct {
 	displayedObserversLock  sync.RWMutex
 }
 
-func New(db *store.Queries) (*Module, error) {
+func New(db *store.Queries, logger *log.Logger) (*Module, error) {
 	options, err := fetchModuleOptions(db)
 	if err != nil {
 		return &Module{}, err
@@ -41,6 +42,7 @@ func New(db *store.Queries) (*Module, error) {
 		options:            options,
 		api:                inat.New(),
 		db:                 db,
+		logger:             logger,
 		displayedObservers: make(map[string][]int64),
 		crons:              make([]*cron.Cron, 0),
 	}, nil
@@ -60,8 +62,8 @@ func (m *Module) SetOptions(options Options) {
 
 func (m *Module) Start(discord *discordgo.Session) error {
 	if !m.isStarted {
-		log.Println("started inatobs module")
-		log.Printf(" -> channels: %+v", m.Options().Channels)
+		m.logger.Info("started inatobs module")
+		m.logger.Infof(" -> channels: %+v", m.Options().Channels)
 		m.isStarted = true
 		m.registerHandlers(discord)
 		m.startCrons(discord)
@@ -97,7 +99,7 @@ func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) err
 
 	m.SetOptions(options)
 	m.startCrons(discord)
-	log.Printf(" -> channels: %+v", m.Options().Channels)
+	m.logger.Infof(" -> channels: %+v", m.Options().Channels)
 
 	return nil
 }
@@ -117,7 +119,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 		m.registerSlashCommands(discord)
 	} else {
 		discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-			log.Println(" -> discord connection detected, registering slash commands for inatobs")
+			m.logger.Info(" -> discord connection detected, registering slash commands for inatobs")
 			m.registerSlashCommands(discord)
 		})
 	}
@@ -135,7 +137,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 		}
 
 		if i.ApplicationCommandData().Name == "loadinat" {
-			log.Println("/loadinat called, loading observation to display")
+			m.logger.Info("/loadinat called, loading observation to display")
 			go m.Post(discord, i.ChannelID)
 
 			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -169,10 +171,10 @@ func (m *Module) registerSlashCommands(discord *discordgo.Session) {
 	_, err := discord.ApplicationCommandCreate(discord.State.Application.ID, "", &command)
 
 	if err != nil {
-		log.Printf("error creating /loadinat command: %v", err)
+		m.logger.Warnf("error creating /loadinat command: %v", err)
 	}
 
-	log.Println(" -> inatobs slash commands registered")
+	m.logger.Info(" -> inatobs slash commands registered")
 }
 
 func (m *Module) findUnseenObservation(
@@ -215,11 +217,11 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 		return
 	}
 
-	log.Print("Attempting to fetch an unseen observation to display")
+	m.logger.Info("Attempting to fetch an unseen observation to display")
 	o, err := m.findUnseenObservation(channelID, options.ProjectID)
 
 	if err != nil {
-		log.Printf("error fetching unseen observation: %v", err)
+		m.logger.Errorf("error fetching unseen observation: %v", err)
 		return
 	}
 
@@ -247,7 +249,7 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 		r, err := http.Get(photo.MediumURL)
 
 		if err != nil {
-			log.Printf("unable to retrieve data for photo `%s`: %v", photo.MediumURL, err)
+			m.logger.Errorf("unable to retrieve data for photo `%s`: %v", photo.MediumURL, err)
 			continue
 		}
 
@@ -274,7 +276,7 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 		},
 	})
 
-	log.Printf("Displaying observation id %d from %s", o.ID, o.Username)
+	m.logger.Infof("Displaying observation id %d from %s", o.ID, o.Username)
 
 	m.markObservationAsSeen(context.Background(), channelID, o)
 }

@@ -3,10 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
+	"os"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/charmbracelet/log"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 
@@ -19,8 +20,15 @@ import (
 	"github.com/synic/buggins/internal/store"
 )
 
+var (
+	logger = log.NewWithOptions(os.Stderr, log.Options{
+		ReportTimestamp: true,
+	})
+)
+
 func getProviders(databaseURL string) fx.Option {
 	return fx.Options(
+		fx.Provide(newLogger),
 		fx.Provide(newDatabase(databaseURL)),
 		fx.Provide(featured.Provider),
 		fx.Provide(inatobs.Provider),
@@ -28,6 +36,10 @@ func getProviders(databaseURL string) fx.Option {
 		fx.Provide(thisthat.Provider),
 		fx.Provide(newModuleManager),
 	)
+}
+
+func newLogger() *log.Logger {
+	return logger
 }
 
 func newDiscordSession(
@@ -43,7 +55,7 @@ func newDiscordSession(
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
 				discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-					log.Printf("User '%s' connected to discord!", r.User.Username)
+					logger.Infof("User '%s' connected to discord!", r.User.Username)
 
 					for _, module := range bot.Modules() {
 						module.Start(discord)
@@ -54,12 +66,12 @@ func newDiscordSession(
 					return err
 				}
 
-				log.Println("started discord bot")
+				logger.Info("started discord bot")
 
 				return nil
 			},
 			OnStop: func(ctx context.Context) error {
-				log.Println("closing discord connection...")
+				logger.Info("closing discord connection...")
 				if err := discord.Close(); err != nil {
 					return err
 				}
@@ -89,15 +101,17 @@ func startIpcService(
 	*discordgo.Session,
 	*m.ModuleManager,
 	*store.Queries,
+	*log.Logger,
 ) (*ipc.Service, error) {
 	return func(
 		lc fx.Lifecycle,
 		discord *discordgo.Session,
 		manager *m.ModuleManager,
 		db *store.Queries,
+		logger *log.Logger,
 	) (*ipc.Service, error) {
 		var opts []grpc.ServerOption
-		service, err := ipc.New(discord, db, manager)
+		service, err := ipc.New(discord, db, manager, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +125,7 @@ func startIpcService(
 		grpcServer := grpc.NewServer(opts...)
 		ipc.RegisterIpcServiceServer(grpcServer, service)
 
-		log.Printf("ipc service serving on %s", bind)
+		logger.Infof("ipc service serving on %s", bind)
 
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
@@ -119,7 +133,7 @@ func startIpcService(
 				return nil
 			},
 			OnStop: func(ctx context.Context) error {
-				log.Println("stopping IPC service...")
+				logger.Info("stopping IPC service...")
 				grpcServer.Stop()
 				lis.Close()
 				return nil

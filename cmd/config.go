@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -51,7 +50,7 @@ func maybeSendReload(ctx context.Context, module string) {
 	)
 
 	if err != nil {
-		log.Printf("error connecting to ipc server: %v", err)
+		logger.Errorf("error connecting to ipc server: %v", err)
 		return
 	}
 
@@ -63,7 +62,7 @@ func maybeSendReload(ctx context.Context, module string) {
 	})
 
 	if err != nil {
-		log.Printf("error sending reload signal: %v", err)
+		logger.Errorf("error sending reload signal: %v", err)
 		return
 	}
 
@@ -132,7 +131,7 @@ func updateConfigurationOption(c m.ConfigCommandOptions) error {
 			return fmt.Errorf("config %s not found", key)
 		}
 
-		log.Fatalf("error looking up configuration: %v", err)
+		logger.Fatalf("error looking up configuration: %v", err)
 	}
 
 	options := c.GetData()
@@ -149,7 +148,7 @@ func updateConfigurationOption(c m.ConfigCommandOptions) error {
 	})
 
 	if err != nil {
-		log.Fatalf("could not delete configuration: %v", err)
+		logger.Fatalf("could not delete configuration: %v", err)
 	}
 
 	maybeSendReload(ctx, c.ModuleName)
@@ -177,7 +176,7 @@ func removeConfigurationOption(c m.ConfigCommandOptions) error {
 			return fmt.Errorf("config %s not found", key)
 		}
 
-		log.Fatalf("error looking up configuration: %v", err)
+		logger.Fatalf("error looking up configuration: %v", err)
 	}
 
 	_, err = db.DeleteModuleConfiguration(ctx, store.DeleteModuleConfigurationParams{
@@ -186,7 +185,7 @@ func removeConfigurationOption(c m.ConfigCommandOptions) error {
 	})
 
 	if err != nil {
-		log.Fatalf("could not delete configuration: %v", err)
+		logger.Fatalf("could not delete configuration: %v", err)
 	}
 
 	maybeSendReload(ctx, c.ModuleName)
@@ -209,10 +208,10 @@ func init() {
 				err := saveConfigurationOption(c)
 
 				if err != nil {
-					log.Fatalf("error adding config for %s: %v", c.GetKey(), err)
+					logger.Fatalf("error adding config for %s: %v", c.GetKey(), err)
 				}
 
-				log.Println("Configuration added successfully!")
+				logger.Info("Configuration added successfully!")
 			},
 		}
 
@@ -223,10 +222,10 @@ func init() {
 				err := updateConfigurationOption(c)
 
 				if err != nil {
-					log.Fatalf("error updating config for %s: %v", c.GetKey(), err)
+					logger.Fatalf("error updating config for %s: %v", c.GetKey(), err)
 				}
 
-				log.Println("Configuration updated successfully!")
+				logger.Info("Configuration updated successfully!")
 			},
 		}
 
@@ -237,10 +236,10 @@ func init() {
 				err := removeConfigurationOption(c)
 
 				if err != nil {
-					log.Fatalf("error removing config for %s: %v", c.GetKey(), err)
+					logger.Fatalf("error removing config for %s: %v", c.GetKey(), err)
 				}
 
-				log.Println("Configuration removed.")
+				logger.Info("Configuration removed.")
 			},
 		}
 

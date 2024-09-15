@@ -3,11 +3,11 @@ package thisthat
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/charmbracelet/log"
 
 	"github.com/synic/buggins/internal/store"
 )
@@ -15,19 +15,20 @@ import (
 var emojis = []string{"1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"}
 
 type Module struct {
+	logger      *log.Logger
 	options     Options
-	isStarted   bool
 	optionsLock sync.RWMutex
+	isStarted   bool
 }
 
-func New(db *store.Queries) (*Module, error) {
+func New(db *store.Queries, logger *log.Logger) (*Module, error) {
 	options, err := fetchModuleOptions(db)
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse thisthat options: %w", err)
 	}
 
-	return &Module{options: options}, nil
+	return &Module{options: options, logger: logger}, nil
 }
 
 func (m *Module) Name() string {
@@ -53,7 +54,7 @@ func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) err
 	}
 
 	m.SetOptions(options)
-	log.Printf(" -> channels: %+v", m.Options().Channels)
+	m.logger.Infof(" -> channels: %+v", m.Options().Channels)
 	return nil
 }
 
@@ -70,8 +71,8 @@ func (m *Module) getChannelOptions(channelID string) (ChannelOptions, error) {
 func (m *Module) Start(discord *discordgo.Session) error {
 	if !m.isStarted {
 		m.isStarted = true
-		log.Println("started thisthat module")
-		log.Printf(" -> channels: %+v", m.Options().Channels)
+		m.logger.Info("started thisthat module")
+		m.logger.Infof(" -> channels: %+v", m.Options().Channels)
 		m.registerHandlers(discord)
 	}
 	return nil
