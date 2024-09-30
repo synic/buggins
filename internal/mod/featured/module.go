@@ -100,7 +100,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
 		config, err := m.getGuildConfig(r.GuildID)
 
-		if err != nil || config.ChannelID != r.ChannelID {
+		if err != nil {
 			return
 		}
 
