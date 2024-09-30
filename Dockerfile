@@ -15,4 +15,4 @@ FROM gcr.io/distroless/static-debian12:9efbcaacd8eac4960b315c502adffdbf3398ce62
 WORKDIR /
 COPY --from=build-base /app/bin/bot /bot
 
-CMD ["/bot", "start", "-c", "config.yaml"]
+CMD ["/bot", "start"]
