@@ -7,14 +7,14 @@ import (
 	"github.com/charmbracelet/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/synic/buggins/internal/m"
+	"github.com/synic/buggins/internal/mod"
 	"github.com/synic/buggins/internal/store"
 )
 
 type Service struct {
 	UnimplementedIpcServiceServer
 	discord *discordgo.Session
-	manager *m.ModuleManager
+	manager *mod.ModuleManager
 	db      *store.Queries
 	logger  *log.Logger
 }
@@ -22,7 +22,7 @@ type Service struct {
 func New(
 	discord *discordgo.Session,
 	db *store.Queries,
-	manager *m.ModuleManager,
+	manager *mod.ModuleManager,
 	logger *log.Logger,
 
 ) (*Service, error) {
@@ -36,7 +36,7 @@ func (s *Service) ReloadConfiguration(
 	for _, m := range s.manager.Modules() {
 		if m.Name() == request.Module {
 			s.logger.Infof("Reloading configuration for module '%s'...", m.Name())
-			m.ReloadConfig(s.discord, s.db)
+			m.ReloadConfig(ctx, s.discord, s.db)
 		}
 	}
 	return &emptypb.Empty{}, nil

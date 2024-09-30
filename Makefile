@@ -47,11 +47,11 @@ release-docker:
 
 .PHONY: codegen
 codegen:
-	go generate ./...
+	go generate -n ./...
 
 .PHONY: test
 test:
-	go test -race ./... | tc
+	go test -race ./...
 
 .PHONY: lint
 lint:

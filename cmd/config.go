@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -15,11 +16,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/synic/buggins/internal/ipc/v1"
-	"github.com/synic/buggins/internal/m"
-	"github.com/synic/buggins/internal/m/featured"
-	"github.com/synic/buggins/internal/m/inatlookup"
-	"github.com/synic/buggins/internal/m/inatobs"
-	"github.com/synic/buggins/internal/m/thisthat"
+	"github.com/synic/buggins/internal/mod"
+	"github.com/synic/buggins/internal/mod/featured"
+	"github.com/synic/buggins/internal/mod/inatlookup"
+	"github.com/synic/buggins/internal/mod/inatobs"
+	"github.com/synic/buggins/internal/mod/thisthat"
 	"github.com/synic/buggins/internal/store"
 )
 
@@ -27,7 +28,7 @@ var (
 	shouldConnectIpcService bool
 )
 
-var configCommandFunctions = []func() m.ConfigCommandOptions{
+var configCommandFunctions = []func() mod.ConfigCommandOptions{
 	featured.GetConfigCommandOptions,
 	thisthat.GetConfigCommandOptions,
 	inatobs.GetConfigCommandOptions,
@@ -40,12 +41,19 @@ var configCmd = &cobra.Command{
 }
 
 func maybeSendReload(ctx context.Context, module string) {
+	socket := fmt.Sprintf("unix://%s", ipcSocket)
+
 	if !shouldConnectIpcService {
 		return
 	}
 
+	if _, err := os.Stat(ipcSocket); errors.Is(err, os.ErrNotExist) {
+		logger.Debug("ipc socket not found, skipping reload signal")
+		return
+	}
+
 	conn, err := grpc.NewClient(
-		fmt.Sprintf("unix://%s", ipcSocket),
+		socket,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 
@@ -68,7 +76,7 @@ func maybeSendReload(ctx context.Context, module string) {
 
 }
 
-func saveConfigurationOption(c m.ConfigCommandOptions) error {
+func saveConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
 	db, err := store.Init(viper.GetString("DatabaseURL"))
 
@@ -97,9 +105,9 @@ func saveConfigurationOption(c m.ConfigCommandOptions) error {
 	}
 
 	_, err = db.CreateModuleConfiguration(ctx, store.CreateModuleConfigurationParams{
-		Module:  c.ModuleName,
-		Key:     key,
-		Options: data,
+		Module: c.ModuleName,
+		Key:    key,
+		Data:   data,
 	})
 
 	if err != nil {
@@ -111,7 +119,7 @@ func saveConfigurationOption(c m.ConfigCommandOptions) error {
 	return nil
 }
 
-func updateConfigurationOption(c m.ConfigCommandOptions) error {
+func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
 	db, err := store.Init(viper.GetString("DatabaseURL"))
 
@@ -142,9 +150,9 @@ func updateConfigurationOption(c m.ConfigCommandOptions) error {
 	}
 
 	_, err = db.UpdateModuleConfiguration(ctx, store.UpdateModuleConfigurationParams{
-		Module:  c.ModuleName,
-		Key:     key,
-		Options: data,
+		Module: c.ModuleName,
+		Key:    key,
+		Data:   data,
 	})
 
 	if err != nil {
@@ -156,7 +164,7 @@ func updateConfigurationOption(c m.ConfigCommandOptions) error {
 	return nil
 }
 
-func removeConfigurationOption(c m.ConfigCommandOptions) error {
+func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
 	db, err := store.Init(viper.GetString("DatabaseURL"))
 

@@ -11,22 +11,22 @@ import (
 )
 
 const createModuleConfiguration = `-- name: CreateModuleConfiguration :one
-insert into module_configuration (module, key, options)
+insert into module_configuration (module, key, data)
   values (?, ?, ?)
 returning
-  module, "key", options
+  module, "key", data
 `
 
 type CreateModuleConfigurationParams struct {
-	Module  string      `json:"module"`
-	Key     string      `json:"key"`
-	Options interface{} `json:"options"`
+	Module string      `json:"module"`
+	Key    string      `json:"key"`
+	Data   interface{} `json:"data"`
 }
 
 func (q *Queries) CreateModuleConfiguration(ctx context.Context, arg CreateModuleConfigurationParams) (ModuleConfiguration, error) {
-	row := q.db.QueryRowContext(ctx, createModuleConfiguration, arg.Module, arg.Key, arg.Options)
+	row := q.db.QueryRowContext(ctx, createModuleConfiguration, arg.Module, arg.Key, arg.Data)
 	var i ModuleConfiguration
-	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	err := row.Scan(&i.Module, &i.Key, &i.Data)
 	return i, err
 }
 
@@ -62,7 +62,7 @@ delete from module_configuration
 where module = ?
   and key = ?
 returning
-  module, "key", options
+  module, "key", data
 `
 
 type DeleteModuleConfigurationParams struct {
@@ -73,7 +73,7 @@ type DeleteModuleConfigurationParams struct {
 func (q *Queries) DeleteModuleConfiguration(ctx context.Context, arg DeleteModuleConfigurationParams) (ModuleConfiguration, error) {
 	row := q.db.QueryRowContext(ctx, deleteModuleConfiguration, arg.Module, arg.Key)
 	var i ModuleConfiguration
-	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	err := row.Scan(&i.Module, &i.Key, &i.Data)
 	return i, err
 }
 
@@ -106,7 +106,7 @@ func (q *Queries) FindIsMessageFeatured(ctx context.Context, arg FindIsMessageFe
 
 const findModuleConfiguration = `-- name: FindModuleConfiguration :one
 select
-  module, "key", options
+  module, "key", data
 from
   module_configuration
 where
@@ -122,13 +122,13 @@ type FindModuleConfigurationParams struct {
 func (q *Queries) FindModuleConfiguration(ctx context.Context, arg FindModuleConfigurationParams) (ModuleConfiguration, error) {
 	row := q.db.QueryRowContext(ctx, findModuleConfiguration, arg.Module, arg.Key)
 	var i ModuleConfiguration
-	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	err := row.Scan(&i.Module, &i.Key, &i.Data)
 	return i, err
 }
 
 const findModuleConfigurations = `-- name: FindModuleConfigurations :many
 select
-  module, "key", options
+  module, "key", data
 from
   module_configuration
 where
@@ -144,7 +144,7 @@ func (q *Queries) FindModuleConfigurations(ctx context.Context, module string) (
 	var items []ModuleConfiguration
 	for rows.Next() {
 		var i ModuleConfiguration
-		if err := rows.Scan(&i.Module, &i.Key, &i.Options); err != nil {
+		if err := rows.Scan(&i.Module, &i.Key, &i.Data); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -247,23 +247,23 @@ const updateModuleConfiguration = `-- name: UpdateModuleConfiguration :one
 update
   module_configuration
 set
-  options = ?
+  data = ?
 where
   key = ?
   and module = ?
 returning
-  module, "key", options
+  module, "key", data
 `
 
 type UpdateModuleConfigurationParams struct {
-	Options interface{} `json:"options"`
-	Key     string      `json:"key"`
-	Module  string      `json:"module"`
+	Data   interface{} `json:"data"`
+	Key    string      `json:"key"`
+	Module string      `json:"module"`
 }
 
 func (q *Queries) UpdateModuleConfiguration(ctx context.Context, arg UpdateModuleConfigurationParams) (ModuleConfiguration, error) {
-	row := q.db.QueryRowContext(ctx, updateModuleConfiguration, arg.Options, arg.Key, arg.Module)
+	row := q.db.QueryRowContext(ctx, updateModuleConfiguration, arg.Data, arg.Key, arg.Module)
 	var i ModuleConfiguration
-	err := row.Scan(&i.Module, &i.Key, &i.Options)
+	err := row.Scan(&i.Module, &i.Key, &i.Data)
 	return i, err
 }

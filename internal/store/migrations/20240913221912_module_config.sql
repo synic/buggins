@@ -3,7 +3,7 @@
 create table module_configuration (
   module text not null,
   key text not null,
-  options jsonb not null default '{}',
+  data json not null default '{}',
   primary key (module, key)
 );
 

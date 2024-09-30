@@ -17,9 +17,9 @@ type FeaturedMessage struct {
 }
 
 type ModuleConfiguration struct {
-	Module  string      `json:"module"`
-	Key     string      `json:"key"`
-	Options interface{} `json:"options"`
+	Module string      `json:"module"`
+	Key    string      `json:"key"`
+	Data   interface{} `json:"data"`
 }
 
 type SeenObservation struct {

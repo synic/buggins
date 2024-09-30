@@ -11,84 +11,96 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/charmbracelet/log"
 
+	"github.com/synic/buggins/internal/mod"
 	"github.com/synic/buggins/internal/store"
 )
 
+var (
+	moduleName = "featured"
+)
+
 type Module struct {
-	db          *store.Queries
-	logger      *log.Logger
-	options     Options
-	isStarted   bool
-	optionsLock sync.RWMutex
+	db         *store.Queries
+	logger     *log.Logger
+	config     []GuildConfig
+	configLock sync.RWMutex
 }
 
 func New(db *store.Queries, logger *log.Logger) (*Module, error) {
-	options, err := fetchModuleOptions(db)
-
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse featured options: %w", err)
-	}
-
-	return &Module{options: options, db: db, logger: logger}, nil
+	return &Module{db: db, logger: logger}, nil
 }
 
-func (m *Module) Start(discord *discordgo.Session) error {
-	if !m.isStarted {
-		m.isStarted = true
-		m.registerHandlers(discord)
-		m.logger.Info("started featured module")
-		m.logger.Infof(" -> guilds: %+v", m.Options().Guilds)
+func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *store.Queries) error {
+	config, err := mod.FetchModuleConfiguration[GuildConfig](ctx, db, moduleName)
+
+	if err != nil {
+		return err
 	}
+
+	m.SetConfig(config)
+	m.registerHandlers(discord)
+	m.logger.Info("started featured module")
+	m.logger.Infof(" -> guilds: %+v", m.Config())
 	return nil
+}
+
+func Provider(db *store.Queries, logger *log.Logger) (mod.ModuleProviderResult, error) {
+	module, err := New(db, logger.With("mod", moduleName))
+
+	if err != nil {
+		return mod.ModuleProviderResult{}, err
+	}
+
+	return mod.ModuleProviderResult{Module: module}, nil
 }
 
 func (m *Module) Name() string {
 	return moduleName
 }
 
-func (m *Module) Options() Options {
-	m.optionsLock.RLock()
-	defer m.optionsLock.RUnlock()
-	return m.options
+func (m *Module) Config() []GuildConfig {
+	m.configLock.RLock()
+	defer m.configLock.RUnlock()
+	return m.config
 }
 
-func (m *Module) SetOptions(options Options) {
-	m.optionsLock.Lock()
-	defer m.optionsLock.Unlock()
-	m.options = options
+func (m *Module) SetConfig(config []GuildConfig) {
+	m.configLock.Lock()
+	defer m.configLock.Unlock()
+	m.config = config
 }
 
-func (m *Module) ReloadConfig(discord *discordgo.Session, db *store.Queries) error {
-	options, err := fetchModuleOptions(db)
+func (m *Module) ReloadConfig(
+	ctx context.Context,
+	discord *discordgo.Session,
+	db *store.Queries,
+) error {
+	config, err := mod.FetchModuleConfiguration[GuildConfig](ctx, db, moduleName)
 
 	if err != nil {
 		return fmt.Errorf("unable to parse featured options: %w", err)
 	}
 
-	m.SetOptions(options)
-	m.logger.Printf(" -> guilds: %+v", m.Options().Guilds)
+	m.SetConfig(config)
+	m.logger.Printf(" -> guilds: %+v", m.Config())
 	return nil
 }
 
-func (m *Module) getGuildOptions(guildID string) (GuildOptions, error) {
-	for _, o := range m.Options().Guilds {
+func (m *Module) getGuildConfig(guildID string) (GuildConfig, error) {
+	for _, o := range m.Config() {
 		if o.ID == guildID {
 			return o, nil
 		}
 	}
 
-	return GuildOptions{}, errors.New("guild not configured")
+	return GuildConfig{}, errors.New("guild not configured")
 }
 
 func (m *Module) registerHandlers(discord *discordgo.Session) {
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
-		if !m.isStarted {
-			return
-		}
+		config, err := m.getGuildConfig(r.GuildID)
 
-		options, err := m.getGuildOptions(r.GuildID)
-
-		if err != nil || options.ChannelID != r.ChannelID {
+		if err != nil || config.ChannelID != r.ChannelID {
 			return
 		}
 
@@ -99,10 +111,10 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			return
 		}
 
-		hasEnough := hasEnoughReactions(msg.Reactions, options.RequiredReactionCount)
-		imgCount := getImageAttachmentCount(msg.Attachments)
+		reactionCount := reactionCount(msg.Reactions)
+		imgCount := imageAttachmentCount(msg.Attachments)
 
-		if imgCount > 0 && hasEnough {
+		if imgCount > 0 && reactionCount >= config.RequiredReactionCount {
 			isFeatured, err := m.db.FindIsMessageFeatured(
 				context.Background(),
 				store.FindIsMessageFeaturedParams{
@@ -173,7 +185,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			}
 
 			discord.ChannelMessageSendComplex(
-				options.ChannelID,
+				config.ChannelID,
 				&discordgo.MessageSend{
 					Content: fmt.Sprintf(
 						":partying_face: Congratulations, <@%s>, your [post](https://discord.com/channels/@me/%s/%s) made the Hall of Fame!",
@@ -189,7 +201,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 	})
 }
 
-func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
+func imageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	if len(attachments) < 1 {
 		return 0
 	}
@@ -205,23 +217,18 @@ func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	return count
 }
 
-func hasEnoughReactions(
+func reactionCount(
 	reactions []*discordgo.MessageReactions,
-	enough int,
-) bool {
-	if enough == 0 {
-		enough = 6
-	}
+) int {
+	count := 0
 
 	for _, reaction := range reactions {
 		if reaction.Me {
 			continue
 		}
 
-		if reaction.Count >= enough {
-			return true
-		}
+		count += reaction.Count
 	}
 
-	return false
+	return count
 }

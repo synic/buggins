@@ -53,7 +53,7 @@ where
   module = ?;
 
 -- name: CreateModuleConfiguration :one
-insert into module_configuration (module, key, options)
+insert into module_configuration (module, key, data)
   values (?, ?, ?)
 returning
   *;
@@ -62,7 +62,7 @@ returning
 update
   module_configuration
 set
-  options = ?
+  data = ?
 where
   key = ?
   and module = ?
