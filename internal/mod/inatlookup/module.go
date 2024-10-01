@@ -79,6 +79,7 @@ func (m *Module) SetConfig(config []GuildConfig) {
 			log.Printf("error compiling command handler regex: %v", err)
 			return
 		}
+
 		guild.CommandPrefixRegex = re
 		m.config[i] = guild
 	}
@@ -204,5 +205,7 @@ func (m *Module) lookupTaxa(
 				},
 			},
 		})
+	} else {
+		discord.ChannelMessageSend(msg.ChannelID, "Sorry, nothing could be found for that request")
 	}
 }
