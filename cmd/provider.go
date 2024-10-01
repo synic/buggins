@@ -26,10 +26,10 @@ var (
 	})
 )
 
-func getProviders(databaseURL string) fx.Option {
+func getProviders(databaseFile string) fx.Option {
 	return fx.Options(
 		fx.Provide(newLogger),
-		fx.Provide(newDatabase(databaseURL)),
+		fx.Provide(newDatabase(databaseFile)),
 		fx.Provide(featured.Provider),
 		fx.Provide(inatobs.Provider),
 		fx.Provide(inatlookup.Provider),
@@ -92,9 +92,9 @@ func newDiscordSession(
 	}
 }
 
-func newDatabase(url string) func() (*store.Queries, error) {
+func newDatabase(fileLocation string) func() (*store.Queries, error) {
 	return func() (*store.Queries, error) {
-		return store.Init(url)
+		return store.Init(fileLocation)
 	}
 }
 

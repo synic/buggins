@@ -111,7 +111,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			return
 		}
 
-		reactionCount := reactionCount(msg.Reactions)
+		reactionCount := starReactionCount(msg.Reactions)
 		imgCount := imageAttachmentCount(msg.Attachments)
 
 		if imgCount > 0 && reactionCount >= config.RequiredReactionCount {
@@ -217,7 +217,7 @@ func imageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	return count
 }
 
-func reactionCount(
+func starReactionCount(
 	reactions []*discordgo.MessageReactions,
 ) int {
 	count := 0
@@ -227,7 +227,9 @@ func reactionCount(
 			continue
 		}
 
-		count += reaction.Count
+		if reaction.Emoji.Name == "⭐" {
+			count += reaction.Count
+		}
 	}
 
 	return count

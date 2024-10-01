@@ -24,11 +24,11 @@ func Execute() {
 }
 
 func init() {
-	viper.SetDefault("DatabaseURL", "db.sqlite")
-	viper.BindEnv("DatabaseURL", "DATABASE_URL")
+	viper.SetDefault("DatabaseFile", "db.sqlite")
+	viper.BindEnv("DatabaseFile", "DATABASE_FILE")
 	rootCmd.PersistentFlags().
-		StringVar(&databaseURL, "database-url", "db.sqlite", "Database connection URL (can be set with $DATABASE_URL in env)")
-	viper.BindPFlag("DatabaseURL", rootCmd.PersistentFlags().Lookup("database-url"))
+		StringVar(&databaseURL, "database-file", "db.sqlite", "Database connection URL (can be set with $DATABASE_URL in env)")
+	viper.BindPFlag("DatabaseFile", rootCmd.PersistentFlags().Lookup("database-url"))
 
 	rootCmd.Root().CompletionOptions.DisableDefaultCmd = true
 }
