@@ -26,7 +26,7 @@ var (
 	})
 )
 
-func getProviders(databaseFile string) fx.Option {
+func providers(databaseFile string) fx.Option {
 	return fx.Options(
 		fx.Provide(newLogger),
 		fx.Provide(newDatabase(databaseFile)),

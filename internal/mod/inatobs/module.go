@@ -118,7 +118,7 @@ func (m *Module) ReloadConfig(
 	return nil
 }
 
-func (m *Module) getChannelOptions(channelID string) (ChannelConfig, error) {
+func (m *Module) channelOptions(channelID string) (ChannelConfig, error) {
 	for _, o := range m.Config() {
 		if o.ID == channelID {
 			return o, nil
@@ -139,7 +139,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 	}
 
 	discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
-		_, err := m.getChannelOptions(i.ChannelID)
+		_, err := m.channelOptions(i.ChannelID)
 
 		if err != nil {
 			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -195,7 +195,7 @@ func (m *Module) findUnseenObservation(
 	channelID string,
 	projectID int64,
 ) (inat.Observation, error) {
-	config, err := m.getChannelOptions(channelID)
+	config, err := m.channelOptions(channelID)
 
 	if err != nil {
 		return inat.Observation{}, err
@@ -225,7 +225,7 @@ func (m *Module) findUnseenObservation(
 }
 
 func (m *Module) Post(discord *discordgo.Session, channelID string) {
-	options, err := m.getChannelOptions(channelID)
+	options, err := m.channelOptions(channelID)
 
 	if err != nil {
 		return
@@ -295,14 +295,14 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 	m.markObservationAsSeen(context.Background(), channelID, o)
 }
 
-func (m *Module) getDisplayedObservers(channelID string) ([]int64, bool) {
+func (m *Module) DisplayedObservers(channelID string) ([]int64, bool) {
 	m.displayedObserversLock.RLock()
 	defer m.displayedObserversLock.RUnlock()
 	items, ok := m.displayedObservers[channelID]
 	return items, ok
 }
 
-func (m *Module) setDisplayedObservers(channelID string, do []int64) {
+func (m *Module) SetDisplayedObservers(channelID string, do []int64) {
 	m.displayedObserversLock.Lock()
 	defer m.displayedObserversLock.Unlock()
 	m.displayedObservers[channelID] = do
@@ -313,13 +313,13 @@ func (m *Module) markObservationAsSeen(
 	channelID string,
 	o inat.Observation,
 ) (store.SeenObservation, error) {
-	options, err := m.getChannelOptions(channelID)
+	options, err := m.channelOptions(channelID)
 
 	if err != nil {
 		return store.SeenObservation{}, err
 	}
 
-	displayed, ok := m.getDisplayedObservers(channelID)
+	displayed, ok := m.DisplayedObservers(channelID)
 
 	if !ok {
 		displayed = make([]int64, 0)
@@ -329,7 +329,7 @@ func (m *Module) markObservationAsSeen(
 		displayed = append(displayed, o.UserID)
 	}
 
-	m.setDisplayedObservers(channelID, displayed)
+	m.SetDisplayedObservers(channelID, displayed)
 	seen, err := m.db.CreateSeenObservation(
 		ctx,
 		store.CreateSeenObservationParams{
@@ -359,7 +359,7 @@ func (m *Module) selectUnseenObservation(
 		potentialObservers []int64
 	)
 
-	displayed, ok := m.getDisplayedObservers(channelID)
+	displayed, ok := m.DisplayedObservers(channelID)
 
 	if !ok {
 		displayed = make([]int64, 0)
@@ -409,7 +409,7 @@ func (m *Module) selectUnseenObservation(
 	if len(potentialObservers) <= 0 {
 		potentialObservers = slices.Collect(maps.Keys(observerMap))
 		displayed = displayed[:0]
-		m.setDisplayedObservers(channelID, displayed)
+		m.SetDisplayedObservers(channelID, displayed)
 	}
 
 	rand.Shuffle(len(potentialObservers), func(i, j int) {

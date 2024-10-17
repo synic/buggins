@@ -20,7 +20,7 @@ type ChannelConfig struct {
 	PageSize    int    `json:"page_size"`
 }
 
-func GetConfigCommandOptions() mod.ConfigCommandOptions {
+func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
 
 	flags.StringVarP(&channelID, "channel-id", "c", "", "Channel ID")

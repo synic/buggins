@@ -23,7 +23,7 @@ var startCmd = &cobra.Command{
 
 		ipcService := provideIpcService(bind)
 		fx.New(
-			getProviders(viper.GetString("DatabaseFile")),
+			providers(viper.GetString("DatabaseFile")),
 			fx.Provide(newDiscordSession(viper.GetString("DiscordToken"))),
 			fx.Invoke(func(*discordgo.Session) {}),
 			ipcService,

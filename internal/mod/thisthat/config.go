@@ -14,7 +14,7 @@ type ChannelConfig struct {
 	ID string `json:"id"`
 }
 
-func GetConfigCommandOptions() mod.ConfigCommandOptions {
+func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
 
 	flags.StringVarP(&channelID, "channel-id", "c", "", "Channel ID")

@@ -70,7 +70,7 @@ func (m *Module) ReloadConfig(
 	return nil
 }
 
-func (m *Module) getChannelConfig(channelID string) (ChannelConfig, error) {
+func (m *Module) channelConfig(channelID string) (ChannelConfig, error) {
 	for _, o := range m.Config() {
 		if o.ID == channelID {
 			return o, nil
@@ -100,7 +100,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 
 func (m *Module) registerHandlers(discord *discordgo.Session) {
 	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
-		config, err := m.getChannelConfig(msg.ChannelID)
+		config, err := m.channelConfig(msg.ChannelID)
 
 		if err != nil {
 			return
@@ -110,7 +110,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			return
 		}
 
-		num := getImageAttachmentCount(msg.Attachments)
+		num := imageAttachmentCount(msg.Attachments)
 
 		if num > 1 {
 			for _, emoji := range emojis[:num] {
@@ -120,7 +120,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 	})
 }
 
-func getImageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
+func imageAttachmentCount(attachments []*discordgo.MessageAttachment) int {
 	if len(attachments) <= 1 {
 		return 0
 	}

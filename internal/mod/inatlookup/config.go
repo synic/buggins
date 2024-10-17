@@ -23,7 +23,7 @@ type GuildConfig struct {
 	Channels           []string       `json:"channels"`
 }
 
-func GetConfigCommandOptions() mod.ConfigCommandOptions {
+func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
 
 	flags.StringVarP(&guildID, "guild-id", "g", "", "Guild ID")

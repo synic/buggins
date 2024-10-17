@@ -86,7 +86,7 @@ func (m *Module) ReloadConfig(
 	return nil
 }
 
-func (m *Module) getGuildConfig(guildID string) (GuildConfig, error) {
+func (m *Module) guildConfig(guildID string) (GuildConfig, error) {
 	for _, o := range m.Config() {
 		if o.ID == guildID {
 			return o, nil
@@ -98,7 +98,7 @@ func (m *Module) getGuildConfig(guildID string) (GuildConfig, error) {
 
 func (m *Module) registerHandlers(discord *discordgo.Session) {
 	discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
-		config, err := m.getGuildConfig(r.GuildID)
+		config, err := m.guildConfig(r.GuildID)
 
 		if err != nil {
 			return

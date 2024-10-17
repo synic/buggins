@@ -18,7 +18,7 @@ type GuildConfig struct {
 	RequiredReactionCount int    `json:"reaction_count"`
 }
 
-func GetConfigCommandOptions() mod.ConfigCommandOptions {
+func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
 
 	flags.StringVarP(&guildID, "guild-id", "g", "", "Guild ID")

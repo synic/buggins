@@ -29,10 +29,10 @@ var (
 )
 
 var configCommandFunctions = []func() mod.ConfigCommandOptions{
-	featured.GetConfigCommandOptions,
-	thisthat.GetConfigCommandOptions,
-	inatobs.GetConfigCommandOptions,
-	inatlookup.GetConfigCommandOptions,
+	featured.ConfigCommandOptions,
+	thisthat.ConfigCommandOptions,
+	inatobs.ConfigCommandOptions,
+	inatlookup.ConfigCommandOptions,
 }
 
 var configCmd = &cobra.Command{

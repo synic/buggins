@@ -47,7 +47,7 @@ func Provider(logger *log.Logger) (mod.ModuleProviderResult, error) {
 	return mod.ModuleProviderResult{Module: module}, nil
 }
 
-func (m *Module) getGuildConfig(guildID string) (GuildConfig, error) {
+func (m *Module) guildConfig(guildID string) (GuildConfig, error) {
 	for _, c := range m.Config() {
 		if c.ID == guildID {
 			return c, nil
@@ -125,7 +125,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 	}
 
 	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
-		config, err := m.getGuildConfig(msg.GuildID)
+		config, err := m.guildConfig(msg.GuildID)
 
 		if err != nil {
 			return
