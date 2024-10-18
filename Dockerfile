@@ -6,6 +6,7 @@ COPY . .
 
 ENV GOPATH=/go
 ENV PATH="${PATH}:/go/bin"
+ENV CGO_ENABLED=1
 RUN set -x \
     && go build \
         -a \
