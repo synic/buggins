@@ -8,6 +8,7 @@ ENV GOPATH=/go
 ENV PATH="${PATH}:/go/bin"
 ENV CGO_ENABLED=1
 RUN set -x \
+    && apk add --no-cache build-base=0.5-r3 \
     && go build \
         -a \
         -tags release \
