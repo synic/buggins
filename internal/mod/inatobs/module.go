@@ -74,7 +74,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 		return err
 	}
 	m.SetConfig(config)
-	m.logger.Info("started inatobs module")
+	m.logger.Info("started module")
 	m.logger.Info(" -> config", "channels", m.Config())
 	m.registerHandlers(discord)
 	m.startCrons(discord)

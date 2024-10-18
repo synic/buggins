@@ -22,14 +22,14 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:        "guild-id",
-			Usage:       "Guild ID",
+			Usage:       "Guild `GUILD_ID`",
 			Aliases:     []string{"g"},
 			Destination: &guildID,
 			Required:    true,
 		},
 		&cli.StringFlag{
 			Name:        "channel-id",
-			Usage:       "Channel ID",
+			Usage:       "Channel `CHANNEL_ID`",
 			Aliases:     []string{"c"},
 			Destination: &channelID,
 			Required:    true,
@@ -38,6 +38,7 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 			Name:        "reaction-count",
 			Aliases:     []string{"r"},
 			Value:       6,
+			Usage:       "Number of reactions to trigger `COUNT`",
 			Destination: &requiredReactionCount,
 		},
 	}

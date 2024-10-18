@@ -92,7 +92,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	}
 	m.SetConfig(config)
 	m.registerHandlers(discord)
-	m.logger.Info("started inatlookup module")
+	m.logger.Info("started module")
 	m.logger.Info(" -> config", "guilds", m.Config())
 	return nil
 }

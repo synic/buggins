@@ -26,7 +26,7 @@ var startCmd = &cli.Command{
 		&cli.BoolFlag{
 			Name:        "start-ipc",
 			Value:       false,
-			Destination: &shouldConnectIpcService,
+			Destination: &shouldStartIpcService,
 			Usage:       "Start IPC server",
 		},
 		&cli.StringFlag{

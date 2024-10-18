@@ -27,19 +27,20 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:        "guild-id",
-			Usage:       "Guild ID",
+			Usage:       "Guild `GUILD_ID`",
 			Aliases:     []string{"g"},
 			Destination: &guildID,
 			Required:    true,
 		},
 		&cli.StringFlag{
 			Name:        "command-prefix",
-			Usage:       "Command prefix",
+			Usage:       "Command prefix `PREFIX`",
 			Destination: &commandPrefix,
 			Value:       ",",
 		},
 		&cli.StringSliceFlag{
 			Name:        "channels",
+			Usage:       "Channel ids (omit for all channels) `CHANNEL_IDS`",
 			Aliases:     []string{"c"},
 			Destination: &channels,
 			Value:       cli.NewStringSlice(),

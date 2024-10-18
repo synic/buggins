@@ -92,7 +92,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	}
 
 	m.SetConfig(config)
-	m.logger.Info("started thisthat module")
+	m.logger.Info("started module")
 	m.logger.Info(" -> config", "config", m.Config())
 	m.registerHandlers(discord)
 	return nil

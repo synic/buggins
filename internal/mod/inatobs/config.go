@@ -24,14 +24,14 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:        "channel-id",
-			Usage:       "Channel ID",
+			Usage:       "Channel `CHANNEL_ID`",
 			Aliases:     []string{"c"},
 			Destination: &channelID,
 			Required:    true,
 		},
 		&cli.Int64Flag{
 			Name:        "project-id",
-			Usage:       "Project ID",
+			Usage:       "Project `PROJECT_ID`",
 			Aliases:     []string{"p"},
 			Destination: &projectID,
 			Required:    true,
@@ -40,12 +40,12 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 			Name:        "schedule-pattern",
 			Destination: &cronPattern,
 			Value:       "0 * * * *",
-			Usage:       "Schedule pattern",
+			Usage:       "Schedule cron pattern `PATTERN`",
 		},
 		&cli.IntFlag{
 			Name:        "page-size",
 			Value:       10,
-			Usage:       "Number of pages to fetch from iNaturalist",
+			Usage:       "Number of pages to fetch from iNaturalist `SIZE`",
 			Destination: &pageSize,
 		},
 	}

@@ -20,7 +20,7 @@ func ConfigCommandOptions() mod.ConfigCommandOptions {
 			Name:        "channel-id",
 			Aliases:     []string{"c"},
 			Required:    true,
-			Usage:       "Channel ID",
+			Usage:       "Channel `CHANNEL_ID`",
 			Destination: &channelID,
 		},
 	}
