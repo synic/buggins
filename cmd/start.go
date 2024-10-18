@@ -2,20 +2,41 @@ package cmd
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 	"go.uber.org/fx"
 )
 
 var (
+	discordToken          string
 	ipcSocket             string
-	shouldStartIpcService bool
+	shouldStartIpcService = false
 )
 
-var startCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start buggins bot and connect to Discord",
-	Run: func(cmd *cobra.Command, args []string) {
+var startCmd = &cli.Command{
+	Name:  "start",
+	Usage: "Start buggins bot and connect to Discord",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:        "discord-token",
+			Required:    true,
+			Destination: &discordToken,
+			Usage:       "Discord token",
+			EnvVars:     []string{"DISCORD_TOKEN"},
+		},
+		&cli.BoolFlag{
+			Name:        "start-ipc",
+			Value:       false,
+			Destination: &shouldConnectIpcService,
+			Usage:       "Start IPC server",
+		},
+		&cli.StringFlag{
+			Name:        "ipc-socket",
+			Value:       "/tmp/buggins-ipc.sock",
+			Usage:       "IPC bind socket",
+			Destination: &ipcSocket,
+		},
+	},
+	Action: func(ctx *cli.Context) error {
 		bind := ""
 		if ipcSocket != "" && shouldStartIpcService {
 			bind = ipcSocket
@@ -23,29 +44,16 @@ var startCmd = &cobra.Command{
 
 		ipcService := provideIpcService(bind)
 		fx.New(
-			providers(viper.GetString("DatabaseFile")),
-			fx.Provide(newDiscordSession(viper.GetString("DiscordToken"))),
+			providers(databaseFile),
+			fx.Provide(newDiscordSession(discordToken)),
 			fx.Invoke(func(*discordgo.Session) {}),
 			ipcService,
 		).
 			Run()
+		return nil
 	},
 }
 
 func init() {
-	viper.BindEnv("DiscordToken", "DISCORD_TOKEN")
-
-	startCmd.Flags().StringVar(&ipcSocket, "ipc-socket", "/tmp/buggins-ipc.sock", "IPC bind")
-	startCmd.Flags().BoolVar(&shouldStartIpcService, "start-ipc", false, "Start IPC Server")
-	startCmd.Flags().
-		StringVar(&discordToken, "discord-token", "", "Discord token (can be set with $DISCORD_TOKEN in env)")
-	viper.BindPFlag("DiscordToken", startCmd.Flags().Lookup("discord-token"))
-	startCmd.MarkFlagRequired("discord-token")
-
-	if viper.IsSet("DiscordToken") {
-		startCmd.Flags().
-			SetAnnotation("discord-token", cobra.BashCompOneRequiredFlag, []string{"false"})
-	}
-
-	rootCmd.AddCommand(startCmd)
+	app.Commands = append(app.Commands, startCmd)
 }

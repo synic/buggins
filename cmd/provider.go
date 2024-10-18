@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
-	"os"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 
@@ -21,9 +20,7 @@ import (
 )
 
 var (
-	logger = log.NewWithOptions(os.Stderr, log.Options{
-		ReportTimestamp: true,
-	})
+	logger = slog.Default()
 )
 
 func providers(databaseFile string) fx.Option {
@@ -38,7 +35,7 @@ func providers(databaseFile string) fx.Option {
 	)
 }
 
-func newLogger() *log.Logger {
+func newLogger() *slog.Logger {
 	return logger
 }
 
@@ -63,7 +60,7 @@ func newDiscordSession(
 		params.LC.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
 				discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-					logger.Infof("User '%s' connected to discord!", r.User.Username)
+					logger.Info("User connected to discord!", "user", r.User.Username)
 
 					for _, module := range params.Manager.Modules() {
 						module.Start(ctx, discord, params.DB)
@@ -105,7 +102,7 @@ type ipcServiceParams struct {
 	Manager *mod.ModuleManager
 	DB      *store.Queries
 	Discord *discordgo.Session
-	Logger  *log.Logger
+	Logger  *slog.Logger
 }
 
 func startIpcService(bind string) func(
@@ -127,7 +124,7 @@ func startIpcService(bind string) func(
 		grpcServer := grpc.NewServer(opts...)
 		ipc.RegisterIpcServiceServer(grpcServer, service)
 
-		logger.Infof("ipc service serving on %s", bind)
+		logger.Info("ipc service serving", "bind", bind)
 
 		params.LC.Append(fx.Hook{
 			OnStart: func(context.Context) error {

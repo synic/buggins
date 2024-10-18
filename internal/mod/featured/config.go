@@ -1,7 +1,7 @@
 package featured
 
 import (
-	"github.com/spf13/pflag"
+	"github.com/urfave/cli/v2"
 
 	"github.com/synic/buggins/internal/mod"
 )
@@ -9,7 +9,7 @@ import (
 var (
 	guildID               string
 	channelID             string
-	RequiredReactionCount int
+	requiredReactionCount int
 )
 
 type GuildConfig struct {
@@ -19,23 +19,39 @@ type GuildConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
-
-	flags.StringVarP(&guildID, "guild-id", "g", "", "Guild ID")
-	flags.StringVarP(&channelID, "channel-id", "c", "", "Channel ID")
-	flags.IntVarP(&RequiredReactionCount, "reaction-count", "r", 6, "Required reaction count")
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "guild-id",
+			Usage:       "Guild ID",
+			Aliases:     []string{"g"},
+			Destination: &guildID,
+			Required:    true,
+		},
+		&cli.StringFlag{
+			Name:        "channel-id",
+			Usage:       "Channel ID",
+			Aliases:     []string{"c"},
+			Destination: &channelID,
+			Required:    true,
+		},
+		&cli.IntFlag{
+			Name:        "reaction-count",
+			Aliases:     []string{"r"},
+			Value:       6,
+			Destination: &requiredReactionCount,
+		},
+	}
 
 	return mod.ConfigCommandOptions{
-		Flags:         flags,
-		KeyFlag:       "guild-id",
-		RequiredFlags: []string{"guild-id", "channel-id"},
-		ModuleName:    moduleName,
-		GetKey:        func() string { return guildID },
+		Flags:      flags,
+		KeyFlag:    "guild-id",
+		ModuleName: moduleName,
+		GetKey:     func() string { return guildID },
 		GetData: func() any {
 			return GuildConfig{
 				ID:                    guildID,
 				ChannelID:             channelID,
-				RequiredReactionCount: RequiredReactionCount,
+				RequiredReactionCount: requiredReactionCount,
 			}
 		},
 	}

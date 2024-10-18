@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"math/rand/v2"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 	"github.com/robfig/cron/v3"
 
 	"github.com/synic/buggins/internal/inat"
@@ -25,7 +25,7 @@ var (
 
 type Module struct {
 	api                     inat.Api
-	logger                  *log.Logger
+	logger                  *slog.Logger
 	db                      *store.Queries
 	displayedObservers      map[string][]int64
 	config                  []ChannelConfig
@@ -36,7 +36,7 @@ type Module struct {
 	displayedObserversLock  sync.RWMutex
 }
 
-func New(db *store.Queries, logger *log.Logger) (*Module, error) {
+func New(db *store.Queries, logger *slog.Logger) (*Module, error) {
 	return &Module{
 		api:                inat.New(),
 		db:                 db,
@@ -46,7 +46,7 @@ func New(db *store.Queries, logger *log.Logger) (*Module, error) {
 	}, nil
 }
 
-func Provider(db *store.Queries, logger *log.Logger) (mod.ModuleProviderResult, error) {
+func Provider(db *store.Queries, logger *slog.Logger) (mod.ModuleProviderResult, error) {
 	module, err := New(db, logger.With("mod", moduleName))
 
 	if err != nil {
@@ -75,7 +75,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	}
 	m.SetConfig(config)
 	m.logger.Info("started inatobs module")
-	m.logger.Infof(" -> channels: %+v", m.Config())
+	m.logger.Info(" -> config", "channels", m.Config())
 	m.registerHandlers(discord)
 	m.startCrons(discord)
 	return nil
@@ -113,7 +113,7 @@ func (m *Module) ReloadConfig(
 
 	m.SetConfig(config)
 	m.startCrons(discord)
-	m.logger.Infof(" -> channels: %+v", m.Config())
+	m.logger.Info(" -> config", "channels", m.Config())
 
 	return nil
 }
@@ -185,7 +185,7 @@ func (m *Module) registerSlashCommands(discord *discordgo.Session) {
 	_, err := discord.ApplicationCommandCreate(discord.State.Application.ID, "", &command)
 
 	if err != nil {
-		m.logger.Warnf("error creating /loadinat command: %v", err)
+		m.logger.Warn("error creating /loadinat command", "err", err)
 	}
 
 	m.logger.Info(" -> inatobs slash commands registered")
@@ -235,7 +235,7 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 	o, err := m.findUnseenObservation(channelID, options.ProjectID)
 
 	if err != nil {
-		m.logger.Errorf("error fetching unseen observation: %v", err)
+		m.logger.Error("error fetching unseen observation", "err", err)
 		return
 	}
 
@@ -263,7 +263,13 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 		res, err := http.Get(photo.MediumURL)
 
 		if err != nil {
-			m.logger.Errorf("unable to retrieve data for photo `%s`: %v", photo.MediumURL, err)
+			m.logger.Error(
+				"unable to retrieve data for photo",
+				"photo",
+				photo.MediumURL,
+				"err",
+				err,
+			)
 			continue
 		}
 
@@ -290,7 +296,7 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 		},
 	})
 
-	m.logger.Infof("Displaying observation id %d from %s", o.ID, o.Username)
+	m.logger.Info("Displaying observation id", "id", o.ID, "user", o.Username)
 
 	m.markObservationAsSeen(context.Background(), channelID, o)
 }

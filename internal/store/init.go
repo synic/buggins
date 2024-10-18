@@ -6,8 +6,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func Init(fileLocation string) (*Queries, error) {
-	conn, err := sql.Open("sqlite3", fileLocation)
+func Init(location string) (*Queries, error) {
+	conn, err := sql.Open("sqlite3", location)
 
 	if err != nil {
 		return nil, err

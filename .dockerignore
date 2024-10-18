@@ -9,7 +9,7 @@
 
 # build
 /bin/*
-!/bin/.keep
+!/bin/.gitkeep
 
 # environments
 /.env

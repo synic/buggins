@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/spf13/pflag"
+	"github.com/urfave/cli/v2"
 
 	"github.com/synic/buggins/internal/mod"
 )
@@ -12,7 +12,7 @@ import (
 var (
 	guildID       string
 	commandPrefix string
-	channels      []string
+	channels      cli.StringSlice
 )
 
 type GuildConfig struct {
@@ -24,20 +24,35 @@ type GuildConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
-
-	flags.StringVarP(&guildID, "guild-id", "g", "", "Guild ID")
-	flags.StringVar(&commandPrefix, "command-prefix", ",", "Command prefix")
-	flags.StringArrayVarP(&channels, "channels", "c", []string{}, "Channels")
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "guild-id",
+			Usage:       "Guild ID",
+			Aliases:     []string{"g"},
+			Destination: &guildID,
+			Required:    true,
+		},
+		&cli.StringFlag{
+			Name:        "command-prefix",
+			Usage:       "Command prefix",
+			Destination: &commandPrefix,
+			Value:       ",",
+		},
+		&cli.StringSliceFlag{
+			Name:        "channels",
+			Aliases:     []string{"c"},
+			Destination: &channels,
+			Value:       cli.NewStringSlice(),
+		},
+	}
 
 	return mod.ConfigCommandOptions{
-		Flags:         flags,
-		KeyFlag:       "guild-id",
-		RequiredFlags: []string{"guild-id"},
-		ModuleName:    moduleName,
-		GetKey:        func() string { return guildID },
+		Flags:      flags,
+		KeyFlag:    "guild-id",
+		ModuleName: moduleName,
+		GetKey:     func() string { return guildID },
 		GetData: func() any {
-			c := channels[:]
+			c := channels.Value()[:]
 
 			if slices.Contains(c, "all") {
 				c = []string{}

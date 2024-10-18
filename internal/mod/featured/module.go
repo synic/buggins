@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 
 	"github.com/synic/buggins/internal/mod"
 	"github.com/synic/buggins/internal/store"
@@ -21,12 +21,12 @@ var (
 
 type Module struct {
 	db         *store.Queries
-	logger     *log.Logger
+	logger     *slog.Logger
 	config     []GuildConfig
 	configLock sync.RWMutex
 }
 
-func New(db *store.Queries, logger *log.Logger) (*Module, error) {
+func New(db *store.Queries, logger *slog.Logger) (*Module, error) {
 	return &Module{db: db, logger: logger}, nil
 }
 
@@ -40,11 +40,11 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	m.SetConfig(config)
 	m.registerHandlers(discord)
 	m.logger.Info("started featured module")
-	m.logger.Infof(" -> guilds: %+v", m.Config())
+	m.logger.Info(" -> config", "guilds", m.Config())
 	return nil
 }
 
-func Provider(db *store.Queries, logger *log.Logger) (mod.ModuleProviderResult, error) {
+func Provider(db *store.Queries, logger *slog.Logger) (mod.ModuleProviderResult, error) {
 	module, err := New(db, logger.With("mod", moduleName))
 
 	if err != nil {
@@ -82,7 +82,7 @@ func (m *Module) ReloadConfig(
 	}
 
 	m.SetConfig(config)
-	m.logger.Printf(" -> guilds: %+v", m.Config())
+	m.logger.Info(" -> config", "guilds", m.Config())
 	return nil
 }
 
@@ -107,7 +107,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 		msg, err := d.ChannelMessage(r.ChannelID, r.MessageID)
 
 		if err != nil {
-			m.logger.Printf("error fetching message ID `%s`: %v", r.MessageID, err)
+			m.logger.Info("error fetching message ID", "message", r.MessageID, "err", err)
 			return
 		}
 
@@ -125,19 +125,24 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			)
 
 			if err != nil {
-				m.logger.Warnf(
-					"couldn't determine if message is featured %s %s: %v",
+				m.logger.Warn(
+					"couldn't determine if message is featured",
+					"channel",
 					r.ChannelID,
+					"message",
 					r.MessageID,
+					"err",
 					err,
 				)
 				return
 			}
 
 			if isFeatured > 0 {
-				m.logger.Warnf(
-					"message is already featured, skipping %s %s",
+				m.logger.Warn(
+					"message is already featured, skipping",
+					"channel",
 					r.ChannelID,
+					"message",
 					r.MessageID,
 				)
 				return
@@ -153,10 +158,13 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 			)
 
 			if err != nil {
-				m.logger.Warnf(
-					"couldn't save featured message to db %s %s: %v",
+				m.logger.Warn(
+					"couldn't save featured message to db",
+					"channel",
 					r.ChannelID,
+					"message",
 					r.MessageID,
+					"err",
 					err,
 				)
 				return
@@ -172,7 +180,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 				r, err := http.Get(a.URL)
 
 				if err != nil {
-					m.logger.Errorf("unable to retrieve data for photo `%s`: %v", a.URL, err)
+					m.logger.Error("unable to retrieve data for photo", "url", a.URL, "err", err)
 					continue
 				}
 

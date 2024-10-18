@@ -1,7 +1,7 @@
 package inatobs
 
 import (
-	"github.com/spf13/pflag"
+	"github.com/urfave/cli/v2"
 
 	"github.com/synic/buggins/internal/mod"
 )
@@ -21,19 +21,40 @@ type ChannelConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
-
-	flags.StringVarP(&channelID, "channel-id", "c", "", "Channel ID")
-	flags.Int64VarP(&projectID, "project-id", "p", 0, "iNaturalist Project ID")
-	flags.StringVar(&cronPattern, "schedule-pattern", "0 * * * *", "Schedule pattern")
-	flags.IntVar(&pageSize, "page-size", 10, "Number of pages to fetch from iNaturalist project")
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "channel-id",
+			Usage:       "Channel ID",
+			Aliases:     []string{"c"},
+			Destination: &channelID,
+			Required:    true,
+		},
+		&cli.Int64Flag{
+			Name:        "project-id",
+			Usage:       "Project ID",
+			Aliases:     []string{"p"},
+			Destination: &projectID,
+			Required:    true,
+		},
+		&cli.StringFlag{
+			Name:        "schedule-pattern",
+			Destination: &cronPattern,
+			Value:       "0 * * * *",
+			Usage:       "Schedule pattern",
+		},
+		&cli.IntFlag{
+			Name:        "page-size",
+			Value:       10,
+			Usage:       "Number of pages to fetch from iNaturalist",
+			Destination: &pageSize,
+		},
+	}
 
 	return mod.ConfigCommandOptions{
-		Flags:         flags,
-		KeyFlag:       "channel-id",
-		RequiredFlags: []string{"channel-id", "project-id"},
-		ModuleName:    moduleName,
-		GetKey:        func() string { return channelID },
+		Flags:      flags,
+		KeyFlag:    "channel-id",
+		ModuleName: moduleName,
+		GetKey:     func() string { return channelID },
 		GetData: func() any {
 			return ChannelConfig{
 				ID:          channelID,

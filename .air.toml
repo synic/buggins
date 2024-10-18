@@ -4,11 +4,11 @@ tmp_dir = ".tmp"
 [build]
   args_bin = []
   bin = "./bin/bot start --start-ipc"
-  cmd = "make build"
+  cmd = "mage build:dev"
   delay = 500
   exclude_dir = ["logs", "bin"]
-  exclude_file = ["Dockerfile"]
-  exclude_regex = ["_test.go", ".null-ls"]
+  exclude_file = ["Dockerfile", "mage_output_file.go"]
+  exclude_regex = ["_test\\.go", "\\.null-ls",]
   exclude_unchanged = false
   follow_symlink = false
   full_bin = ""

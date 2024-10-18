@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -28,16 +28,16 @@ type commandHandler = func(*discordgo.Session, *discordgo.MessageCreate, string)
 
 type Module struct {
 	api        inat.Api
-	logger     *log.Logger
+	logger     *slog.Logger
 	config     []GuildConfig
 	configLock sync.RWMutex
 }
 
-func New(logger *log.Logger) (*Module, error) {
+func New(logger *slog.Logger) (*Module, error) {
 	return &Module{api: inat.New(), logger: logger}, nil
 }
 
-func Provider(logger *log.Logger) (mod.ModuleProviderResult, error) {
+func Provider(logger *slog.Logger) (mod.ModuleProviderResult, error) {
 	module, err := New(logger.With("mod", moduleName))
 
 	if err != nil {
@@ -76,7 +76,7 @@ func (m *Module) SetConfig(config []GuildConfig) {
 		re, err := regexp.Compile(fmt.Sprintf(`(?m)^%s(\w+) +(.*)$`, guild.CommandPrefix))
 
 		if err != nil {
-			log.Printf("error compiling command handler regex: %v", err)
+			m.logger.Info("error compiling command handler regex", "err", err)
 			return
 		}
 
@@ -93,7 +93,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	m.SetConfig(config)
 	m.registerHandlers(discord)
 	m.logger.Info("started inatlookup module")
-	m.logger.Infof(" -> guilds: %+v", m.Config())
+	m.logger.Info(" -> config", "guilds", m.Config())
 	return nil
 }
 
@@ -112,7 +112,7 @@ func (m *Module) ReloadConfig(
 	}
 
 	m.SetConfig(config)
-	m.logger.Infof(" -> guilds: %+v", m.Config())
+	m.logger.Info(" -> guilds", "guilds", m.Config())
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 		}
 
 		if config.CommandPrefixRegex == nil {
-			m.logger.Warnf("guild %s does not have a valid command prefix", msg.GuildID)
+			m.logger.Warn("guilddoes not have a valid command prefix", "guild", msg.GuildID)
 			return
 		}
 

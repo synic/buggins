@@ -1,7 +1,7 @@
 package thisthat
 
 import (
-	"github.com/spf13/pflag"
+	"github.com/urfave/cli/v2"
 
 	"github.com/synic/buggins/internal/mod"
 )
@@ -15,16 +15,21 @@ type ChannelConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := pflag.NewFlagSet(moduleName, pflag.ExitOnError)
-
-	flags.StringVarP(&channelID, "channel-id", "c", "", "Channel ID")
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "channel-id",
+			Aliases:     []string{"c"},
+			Required:    true,
+			Usage:       "Channel ID",
+			Destination: &channelID,
+		},
+	}
 
 	return mod.ConfigCommandOptions{
-		ModuleName:    moduleName,
-		KeyFlag:       "channel-id",
-		Flags:         flags,
-		GetKey:        func() string { return channelID },
-		RequiredFlags: []string{"channel-id"},
+		ModuleName: moduleName,
+		KeyFlag:    "channel-id",
+		Flags:      flags,
+		GetKey:     func() string { return channelID },
 		GetData: func() any {
 			return ChannelConfig{
 				ID: channelID,

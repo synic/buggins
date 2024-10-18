@@ -2,9 +2,9 @@ package ipc
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/synic/buggins/internal/mod"
@@ -16,14 +16,14 @@ type Service struct {
 	discord *discordgo.Session
 	manager *mod.ModuleManager
 	db      *store.Queries
-	logger  *log.Logger
+	logger  *slog.Logger
 }
 
 func New(
 	discord *discordgo.Session,
 	db *store.Queries,
 	manager *mod.ModuleManager,
-	logger *log.Logger,
+	logger *slog.Logger,
 
 ) (*Service, error) {
 	return &Service{discord: discord, manager: manager, db: db, logger: logger}, nil
@@ -35,7 +35,7 @@ func (s *Service) ReloadConfiguration(
 ) (*emptypb.Empty, error) {
 	for _, m := range s.manager.Modules() {
 		if m.Name() == request.Module {
-			s.logger.Infof("Reloading configuration for module '%s'...", m.Name())
+			s.logger.Info("Reloading configuration", "module", m.Name())
 			m.ReloadConfig(ctx, s.discord, s.db)
 		}
 	}

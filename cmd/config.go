@@ -7,11 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
+	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -35,9 +32,24 @@ var configCommandFunctions = []func() mod.ConfigCommandOptions{
 	inatlookup.ConfigCommandOptions,
 }
 
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Configure a module",
+var configCmd = &cli.Command{
+	Name:        "config",
+	Usage:       "Configure a module",
+	Subcommands: []*cli.Command{},
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:        "ipc-socket",
+			Value:       "/tmp/buggins-ipc.sock",
+			Usage:       "IPC socket location",
+			Destination: &ipcSocket,
+		},
+		&cli.BoolFlag{
+			Name:        "connect-ipc",
+			Value:       true,
+			Usage:       "Attempt to use IPC to reload module configuration",
+			Destination: &shouldConnectIpcService,
+		},
+	},
 }
 
 func maybeSendReload(ctx context.Context, module string) {
@@ -58,7 +70,7 @@ func maybeSendReload(ctx context.Context, module string) {
 	)
 
 	if err != nil {
-		logger.Errorf("error connecting to ipc server: %v", err)
+		logger.Error("error connecting to ipc server", "err", err)
 		return
 	}
 
@@ -70,7 +82,7 @@ func maybeSendReload(ctx context.Context, module string) {
 	})
 
 	if err != nil {
-		logger.Errorf("error sending reload signal: %v", err)
+		logger.Error("error sending reload signal", "err", err)
 		return
 	}
 
@@ -78,7 +90,7 @@ func maybeSendReload(ctx context.Context, module string) {
 
 func saveConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
-	db, err := store.Init(viper.GetString("DatabaseURL"))
+	db, err := store.Init(databaseFile)
 
 	if err != nil {
 		return err
@@ -121,7 +133,7 @@ func saveConfigurationOption(c mod.ConfigCommandOptions) error {
 
 func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
-	db, err := store.Init(viper.GetString("DatabaseURL"))
+	db, err := store.Init(databaseFile)
 
 	if err != nil {
 		return err
@@ -139,7 +151,8 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 			return fmt.Errorf("config %s not found", key)
 		}
 
-		logger.Fatalf("error looking up configuration: %v", err)
+		logger.Error("error looking up configuration", "err", err)
+		return err
 	}
 
 	options := c.GetData()
@@ -156,7 +169,8 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 	})
 
 	if err != nil {
-		logger.Fatalf("could not delete configuration: %v", err)
+		logger.Error("could not delete configuration", "err", err)
+		return err
 	}
 
 	maybeSendReload(ctx, c.ModuleName)
@@ -166,7 +180,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 
 func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
-	db, err := store.Init(viper.GetString("DatabaseURL"))
+	db, err := store.Init(databaseFile)
 
 	if err != nil {
 		return err
@@ -184,7 +198,8 @@ func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 			return fmt.Errorf("config %s not found", key)
 		}
 
-		logger.Fatalf("error looking up configuration: %v", err)
+		logger.Error("error looking up configuration", "err", err)
+		return err
 	}
 
 	_, err = db.DeleteModuleConfiguration(ctx, store.DeleteModuleConfigurationParams{
@@ -193,7 +208,8 @@ func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 	})
 
 	if err != nil {
-		logger.Fatalf("could not delete configuration: %v", err)
+		logger.Error("could not delete configuration", "err", err)
+		return err
 	}
 
 	maybeSendReload(ctx, c.ModuleName)
@@ -204,77 +220,70 @@ func init() {
 	for _, f := range configCommandFunctions {
 		c := f()
 
-		modCmd := &cobra.Command{
-			Use:   c.ModuleName,
-			Short: fmt.Sprintf("Configure module '%s'", c.ModuleName),
+		modCmd := &cli.Command{
+			Name:        c.ModuleName,
+			Usage:       fmt.Sprintf("Configure module '%s'", c.ModuleName),
+			Subcommands: []*cli.Command{},
 		}
 
-		addCmd := &cobra.Command{
-			Use:   "add",
-			Short: "Add a configuration",
-			Run: func(*cobra.Command, []string) {
+		addCmd := &cli.Command{
+			Name:  "add",
+			Usage: "Add a configuration",
+			Flags: []cli.Flag{},
+			Action: func(*cli.Context) error {
 				err := saveConfigurationOption(c)
 
 				if err != nil {
-					logger.Fatalf("error adding config for %s: %v", c.GetKey(), err)
+					logger.Error("error adding config", "key", c.GetKey(), "err", err)
+					return err
 				}
 
 				logger.Info("Configuration added successfully!")
+				return nil
 			},
 		}
 
-		updateCmd := &cobra.Command{
-			Use:   "update",
-			Short: "Update a configuration",
-			Run: func(*cobra.Command, []string) {
+		updateCmd := &cli.Command{
+			Name:  "update",
+			Usage: "Update a configuration",
+			Flags: []cli.Flag{},
+			Action: func(*cli.Context) error {
 				err := updateConfigurationOption(c)
 
 				if err != nil {
-					logger.Fatalf("error updating config for %s: %v", c.GetKey(), err)
+					logger.Error("error updating config", "key", c.GetKey(), "err", err)
+					return err
 				}
 
 				logger.Info("Configuration updated successfully!")
+				return nil
 			},
 		}
 
-		rmCmd := &cobra.Command{
-			Use:   "rm",
-			Short: "Remove a configuration",
-			Run: func(*cobra.Command, []string) {
+		rmCmd := &cli.Command{
+			Name:  "rm",
+			Usage: "Remove a configuration",
+			Action: func(*cli.Context) error {
 				err := removeConfigurationOption(c)
 
 				if err != nil {
-					logger.Fatalf("error removing config for %s: %v", c.GetKey(), err)
+					logger.Error("error removing config", "key", c.GetKey(), "err", err)
+					return err
 				}
 
 				logger.Info("Configuration removed.")
+				return nil
 			},
 		}
 
-		c.Flags.VisitAll(func(f *pflag.Flag) {
-			addCmd.Flags().AddFlag(f)
-			updateCmd.Flags().AddFlag(f)
-			if slices.Contains(c.RequiredFlags, f.Name) {
-				addCmd.MarkFlagRequired(f.Name)
-				updateCmd.MarkFlagRequired(f.Name)
-			}
+		for _, flag := range c.Flags {
+			addCmd.Flags = append(addCmd.Flags, flag)
+			updateCmd.Flags = append(updateCmd.Flags, flag)
+		}
 
-			if f.Name == c.KeyFlag {
-				rmCmd.Flags().AddFlag(f)
-				rmCmd.MarkFlagRequired(f.Name)
-			}
-		})
-
-		modCmd.AddCommand(addCmd)
-		modCmd.AddCommand(updateCmd)
-		modCmd.AddCommand(rmCmd)
-		configCmd.AddCommand(modCmd)
+		modCmd.Subcommands = append(modCmd.Subcommands, addCmd, updateCmd, rmCmd)
+		configCmd.Subcommands = append(configCmd.Subcommands, modCmd)
 	}
 
-	configCmd.PersistentFlags().
-		StringVar(&ipcSocket, "ipc-socket", "/tmp/buggins-ipc.sock", "IPC bind")
-	configCmd.PersistentFlags().
-		BoolVar(&shouldConnectIpcService, "connect-ipc", true, "Attempt to use IPC to reload module configuration")
-
-	rootCmd.AddCommand(configCmd)
+	app.Commands = append(app.Commands, configCmd)
 }

@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/spf13/pflag"
+	"github.com/urfave/cli/v2"
 
 	"github.com/synic/buggins/internal/store"
 )
 
 type ConfigCommandOptions struct {
-	Flags         *pflag.FlagSet
-	GetData       func() any
-	ModuleName    string
-	KeyFlag       string
-	GetKey        func() string
-	RequiredFlags []string
+	Flags      []cli.Flag
+	GetData    func() any
+	ModuleName string
+	KeyFlag    string
+	GetKey     func() string
 }
 
 func FetchModuleConfiguration[T any](

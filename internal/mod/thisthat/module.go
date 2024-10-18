@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/charmbracelet/log"
 
 	"github.com/synic/buggins/internal/mod"
 	"github.com/synic/buggins/internal/store"
@@ -20,12 +20,12 @@ var (
 )
 
 type Module struct {
-	logger     *log.Logger
+	logger     *slog.Logger
 	config     []ChannelConfig
 	configLock sync.RWMutex
 }
 
-func Provider(logger *log.Logger) (mod.ModuleProviderResult, error) {
+func Provider(logger *slog.Logger) (mod.ModuleProviderResult, error) {
 	module, err := New(logger.With("mod", moduleName))
 
 	if err != nil {
@@ -35,7 +35,7 @@ func Provider(logger *log.Logger) (mod.ModuleProviderResult, error) {
 	return mod.ModuleProviderResult{Module: module}, nil
 }
 
-func New(logger *log.Logger) (*Module, error) {
+func New(logger *slog.Logger) (*Module, error) {
 	return &Module{logger: logger}, nil
 }
 
@@ -66,7 +66,7 @@ func (m *Module) ReloadConfig(
 	}
 
 	m.SetConfig(config)
-	m.logger.Infof(" -> channels: %+v", m.Config())
+	m.logger.Info(" -> config", "channels", m.Config())
 	return nil
 }
 
@@ -93,7 +93,7 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 
 	m.SetConfig(config)
 	m.logger.Info("started thisthat module")
-	m.logger.Infof(" -> channels: %+v", m.Config())
+	m.logger.Info(" -> config", "config", m.Config())
 	m.registerHandlers(discord)
 	return nil
 }
