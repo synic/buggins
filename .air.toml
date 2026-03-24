@@ -3,7 +3,7 @@ tmp_dir = ".tmp"
 
 [build]
   args_bin = []
-  bin = "./bin/bot start --start-ipc"
+  bin = "./bin/bot-debug start --start-ipc"
   cmd = "mage build:dev"
   delay = 500
   exclude_dir = ["logs", "bin"]

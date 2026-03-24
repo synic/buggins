@@ -3,10 +3,7 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 
@@ -18,23 +15,22 @@ var (
 	Default = Dev
 
 	// paths
-	binPath  = "bin"
-	execPath = path.Join(binPath, "bot")
-	runCmd   = sh.RunCmd("go", "run")
-	buildCmd = sh.RunCmd("go", "build")
-
-	// required command line tools (versions are specified in go.mod)
-	tools = map[string]tool{
-		"air":                {path: "github.com/air-verse/air", global: false},
-		"goose":              {path: "github.com/pressly/goose/v3/cmd/goose", global: false},
-		"sqlc":               {path: "github.com/sqlc-dev/sqlc/cmd/sqlc", global: false},
-		"staticcheck":        {path: "honnef.co/go/tools/cmd/staticcheck", global: true},
-		"protoc-gen-go":      {path: "google.golang.org/protobuf/cmd/protoc-gen-go", global: true},
-		"protoc-gen-go-grpc": {path: "google.golang.org/protobuf/cmd/protoc-gen-go", global: true},
-	}
+	binPath     = "bin"
+	debugPath   = path.Join(binPath, "bot-debug")
+	releasePath = path.Join(binPath, "bot-release")
 
 	// aliases
 	P = filepath.FromSlash
+
+	// commands
+	runCmd         = sh.RunCmd("go", "run")
+	buildCmd       = sh.RunCmd("go", "build")
+	airCmd         = sh.RunCmd("go", "tool", "github.com/air-verse/air")
+	gooseCmd       = sh.RunCmd("go", "tool", "github.com/pressly/goose/v3/cmd/goose")
+	sqlcCmd        = sh.RunCmd("go", "tool", "github.com/sqlc-dev/sqlc/cmd/sqlc")
+	staticCheckCmd = sh.RunCmd("go", "tool", "honnef.co/go/tools/cmd/staticcheck")
+	protoCCmd      = sh.RunCmd("go", "tool", "google.golang.org/protobuf/cmd/protoc-gen-go")
+	grpcCmd        = sh.RunCmd("go", "tool", "google.golang.org/protobuf/cmd/protoc-gen-go")
 )
 
 type tool struct {
@@ -43,79 +39,44 @@ type tool struct {
 }
 
 func Dev() error {
-	mg.Deps(Deps.Dev)
-
-	return sh.RunV(path.Join(binPath, "air"))
-}
-
-type Deps mg.Namespace
-
-func (Deps) Dev() error {
-	gobin, err := filepath.Abs(binPath)
-
-	if err != nil {
-		return err
-	}
-
-	for name, info := range tools {
-		if info.global {
-			_, err := exec.LookPath(name)
-
-			if err != nil {
-				err = sh.RunV("go", "install", info.path)
-
-				if err != nil {
-					return err
-				}
-			}
-			continue
-		}
-
-		_, err = os.Stat(path.Join(binPath, name))
-
-		if err == nil {
-			continue
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-
-		fmt.Printf("installing tool %s ...\n", info.path)
-		err = sh.RunWithV(map[string]string{"GOBIN": gobin}, "go", "install", info.path)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return airCmd()
 }
 
 type Build mg.Namespace
 
 func (Build) Dev() error {
-	return buildCmd("-tags", "debug", "-o", execPath, ".")
+	return buildCmd("-tags", "debug", "-o", debugPath, ".")
 }
 
 func (Build) Release() error {
-	return buildCmd("-tags", "release", "-ldflags", "\"-s -w\"", "-o", execPath, ".")
+	env := map[string]string{"CGO_ENABLED": "1"}
+	return sh.RunWithV(
+		env,
+		"go",
+		"build",
+		"-a",
+		"-tags",
+		"release",
+		"-ldflags",
+		"-s -w -linkmode external -extldflags \"-static\"",
+		"-o",
+		releasePath,
+		".",
+	)
 }
 
 func Codegen() error {
-	mg.Deps(Deps.Dev)
-
 	return sh.Run("go", "generate", "./...")
 }
 
 func Lint() error {
-	mg.Deps(Deps.Dev)
-
 	err := sh.Run("go", "vet", "./...")
 
 	if err != nil {
 		return err
 	}
 
-	return sh.RunV("staticcheck", "./...")
+	return staticCheckCmd()
 }
 
 func Test() error {
@@ -155,13 +116,27 @@ func migrationEnv() map[string]string {
 type Migrate mg.Namespace
 
 func (Migrate) Up() error {
-	return sh.RunWithV(migrationEnv(), "goose", "up")
+	return sh.RunWithV(migrationEnv(), "go", "tool", "github.com/pressly/goose/v3/cmd/goose", "up")
 }
 
 func (Migrate) Down() error {
-	return sh.RunWithV(migrationEnv(), "goose", "down")
+	return sh.RunWithV(
+		migrationEnv(),
+		"go",
+		"tool",
+		"github.com/pressly/goose/v3/cmd/goose",
+		"down",
+	)
 }
 
 func (Migrate) Create(name string) error {
-	return sh.RunWithV(migrationEnv(), "goose", "create", name, "sql")
+	return sh.RunWithV(
+		migrationEnv(),
+		"go",
+		"tool",
+		"github.com/pressly/goose/v3/cmd/goose",
+		"create",
+		name,
+		"sql",
+	)
 }
