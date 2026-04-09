@@ -1,13 +1,9 @@
 package thisthat
 
 import (
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 
 	"github.com/synic/buggins/internal/mod"
-)
-
-var (
-	channelID string
 )
 
 type ChannelConfig struct {
@@ -15,22 +11,20 @@ type ChannelConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := []cli.Flag{
-		&cli.StringFlag{
-			Name:        "channel-id",
-			Aliases:     []string{"c"},
-			Required:    true,
-			Usage:       "Channel `CHANNEL_ID`",
-			Destination: &channelID,
-		},
+	args := []*glap.Arg{
+		glap.NewArg("channel-id").Short('c').Required(true).Help("Channel CHANNEL_ID"),
 	}
 
 	return mod.ConfigCommandOptions{
+		Args:       args,
+		KeyArg:     "channel-id",
 		ModuleName: moduleName,
-		KeyFlag:    "channel-id",
-		Flags:      flags,
-		GetKey:     func() string { return channelID },
-		GetData: func() any {
+		GetKey: func(m *glap.Matches) string {
+			v, _ := m.GetString("channel-id")
+			return v
+		},
+		GetData: func(m *glap.Matches) any {
+			channelID, _ := m.GetString("channel-id")
 			return ChannelConfig{
 				ID: channelID,
 			}

@@ -1,16 +1,9 @@
 package inatobs
 
 import (
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 
 	"github.com/synic/buggins/internal/mod"
-)
-
-var (
-	pageSize    int
-	channelID   string
-	projectID   int64
-	cronPattern string
 )
 
 type ChannelConfig struct {
@@ -21,41 +14,26 @@ type ChannelConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := []cli.Flag{
-		&cli.StringFlag{
-			Name:        "channel-id",
-			Usage:       "Channel `CHANNEL_ID`",
-			Aliases:     []string{"c"},
-			Destination: &channelID,
-			Required:    true,
-		},
-		&cli.Int64Flag{
-			Name:        "project-id",
-			Usage:       "Project `PROJECT_ID`",
-			Aliases:     []string{"p"},
-			Destination: &projectID,
-			Required:    true,
-		},
-		&cli.StringFlag{
-			Name:        "schedule-pattern",
-			Destination: &cronPattern,
-			Value:       "0 * * * *",
-			Usage:       "Schedule cron pattern `PATTERN`",
-		},
-		&cli.IntFlag{
-			Name:        "page-size",
-			Value:       10,
-			Usage:       "Number of pages to fetch from iNaturalist `SIZE`",
-			Destination: &pageSize,
-		},
+	args := []*glap.Arg{
+		glap.NewArg("channel-id").Short('c').Required(true).Help("Channel CHANNEL_ID"),
+		glap.NewArg("project-id").Short('p').Required(true).Help("Project PROJECT_ID"),
+		glap.NewArg("schedule-pattern").Default("0 * * * *").Help("Schedule cron pattern PATTERN"),
+		glap.NewArg("page-size").Default("10").Help("Number of pages to fetch from iNaturalist SIZE"),
 	}
 
 	return mod.ConfigCommandOptions{
-		Flags:      flags,
-		KeyFlag:    "channel-id",
+		Args:       args,
+		KeyArg:     "channel-id",
 		ModuleName: moduleName,
-		GetKey:     func() string { return channelID },
-		GetData: func() any {
+		GetKey: func(m *glap.Matches) string {
+			v, _ := m.GetString("channel-id")
+			return v
+		},
+		GetData: func(m *glap.Matches) any {
+			channelID, _ := m.GetString("channel-id")
+			projectID, _ := m.GetInt64("project-id")
+			pageSize, _ := m.GetInt("page-size")
+			cronPattern, _ := m.GetString("schedule-pattern")
 			return ChannelConfig{
 				ID:          channelID,
 				ProjectID:   projectID,

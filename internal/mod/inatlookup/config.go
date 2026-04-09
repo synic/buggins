@@ -4,15 +4,9 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 
 	"github.com/synic/buggins/internal/mod"
-)
-
-var (
-	guildID       string
-	commandPrefix string
-	channels      cli.StringSlice
 )
 
 type GuildConfig struct {
@@ -24,45 +18,33 @@ type GuildConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := []cli.Flag{
-		&cli.StringFlag{
-			Name:        "guild-id",
-			Usage:       "Guild `GUILD_ID`",
-			Aliases:     []string{"g"},
-			Destination: &guildID,
-			Required:    true,
-		},
-		&cli.StringFlag{
-			Name:        "command-prefix",
-			Usage:       "Command prefix `PREFIX`",
-			Destination: &commandPrefix,
-			Value:       ",",
-		},
-		&cli.StringSliceFlag{
-			Name:        "channels",
-			Usage:       "Channel ids (omit for all channels) `CHANNEL_IDS`",
-			Aliases:     []string{"c"},
-			Destination: &channels,
-			Value:       cli.NewStringSlice(),
-		},
+	args := []*glap.Arg{
+		glap.NewArg("guild-id").Short('g').Required(true).Help("Guild GUILD_ID"),
+		glap.NewArg("command-prefix").Default(",").Help("Command prefix PREFIX"),
+		glap.NewArg("channels").Short('c').Action(glap.Append).Help("Channel ids (omit for all channels) CHANNEL_IDS"),
 	}
 
 	return mod.ConfigCommandOptions{
-		Flags:      flags,
-		KeyFlag:    "guild-id",
+		Args:       args,
+		KeyArg:     "guild-id",
 		ModuleName: moduleName,
-		GetKey:     func() string { return guildID },
-		GetData: func() any {
-			c := channels.Value()[:]
+		GetKey: func(m *glap.Matches) string {
+			v, _ := m.GetString("guild-id")
+			return v
+		},
+		GetData: func(m *glap.Matches) any {
+			guildID, _ := m.GetString("guild-id")
+			commandPrefix, _ := m.GetString("command-prefix")
+			channels, _ := m.GetStringSlice("channels")
 
-			if slices.Contains(c, "all") {
-				c = []string{}
+			if slices.Contains(channels, "all") {
+				channels = []string{}
 			}
 
 			return GuildConfig{
 				ID:            guildID,
 				CommandPrefix: commandPrefix,
-				Channels:      c,
+				Channels:      channels,
 			}
 		},
 	}

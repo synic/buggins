@@ -2,58 +2,43 @@ package cmd
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 	"go.uber.org/fx"
 )
 
-var (
-	discordToken          string
-	ipcSocket             string
-	shouldStartIpcService = false
-)
-
-var startCmd = &cli.Command{
-	Name:  "start",
-	Usage: "Start buggins bot and connect to Discord",
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:        "discord-token",
-			Required:    true,
-			Destination: &discordToken,
-			Usage:       "Discord token",
-			EnvVars:     []string{"DISCORD_TOKEN"},
-		},
-		&cli.BoolFlag{
-			Name:        "start-ipc",
-			Value:       false,
-			Destination: &shouldStartIpcService,
-			Usage:       "Start IPC server",
-		},
-		&cli.StringFlag{
-			Name:        "ipc-socket",
-			Value:       "/tmp/buggins-ipc.sock",
-			Usage:       "IPC bind socket",
-			Destination: &ipcSocket,
-		},
-	},
-	Action: func(ctx *cli.Context) error {
-		bind := ""
-		if ipcSocket != "" && shouldStartIpcService {
-			bind = ipcSocket
-		}
-
-		ipcService := provideIpcService(bind)
-		fx.New(
-			providers(databaseFile),
-			fx.Provide(newDiscordSession(discordToken)),
-			fx.Invoke(func(*discordgo.Session) {}),
-			ipcService,
-		).
-			Run()
-		return nil
-	},
-}
-
 func init() {
-	app.Commands = append(app.Commands, startCmd)
+	cmd := glap.NewCommand("start").
+		About("Start buggins bot and connect to Discord").
+		Arg(glap.NewArg("discord-token").
+			Required(true).
+			Env("DISCORD_TOKEN").
+			Help("Discord token")).
+		Arg(glap.NewArg("start-ipc").
+			Action(glap.SetTrue).
+			Help("Start IPC server")).
+		Arg(glap.NewArg("ipc-socket").
+			Default("/tmp/buggins-ipc.sock").
+			Help("IPC bind socket")).
+		Run(func(m *glap.Matches) error {
+			discordToken, _ := m.GetString("discord-token")
+			shouldStartIpc, _ := m.GetBool("start-ipc")
+			ipcSocket, _ := m.GetString("ipc-socket")
+
+			bind := ""
+			if ipcSocket != "" && shouldStartIpc {
+				bind = ipcSocket
+			}
+
+			ipcService := provideIpcService(bind)
+			fx.New(
+				providers(databaseFile),
+				fx.Provide(newDiscordSession(discordToken)),
+				fx.Invoke(func(*discordgo.Session) {}),
+				ipcService,
+			).
+				Run()
+			return nil
+		})
+
+	RegisterCommand(cmd)
 }

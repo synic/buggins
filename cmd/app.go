@@ -1,33 +1,49 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
 
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 )
 
 var (
 	databaseFile = "db.sqlite"
+	subcommands  []*glap.Command
 )
 
-var app = &cli.App{
-	Name:     "buggins",
-	Usage:    "Discord bot for the Macromania server",
-	Commands: []*cli.Command{},
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:        "database-file",
-			Value:       "db.sqlite",
-			Destination: &databaseFile,
-			Usage:       "Database file",
-			EnvVars:     []string{"DATABASE_FILE"},
-		},
-	},
+func RegisterCommand(cmd *glap.Command) {
+	subcommands = append(subcommands, cmd)
 }
 
 func Execute() {
-	if err := app.Run(os.Args); err != nil {
+	app := glap.NewCommand("buggins").
+		About("Discord bot for the Macromania server").
+		Arg(glap.NewArg("database-file").
+			Default("db.sqlite").
+			Env("DATABASE_FILE").
+			Help("Database file")).
+		Run(func(m *glap.Matches) error {
+			if v, ok := m.GetString("database-file"); ok {
+				databaseFile = v
+			}
+			return nil
+		})
+
+	for _, cmd := range subcommands {
+		app.Subcommand(cmd)
+	}
+
+	_, err := app.Parse(os.Args[1:])
+	if err != nil {
+		var helpErr *glap.HelpRequestedError
+		var versionErr *glap.VersionRequestedError
+		if errors.As(err, &helpErr) || errors.As(err, &versionErr) {
+			fmt.Println(err)
+			return
+		}
 		log.Fatal(err)
 	}
 }

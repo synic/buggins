@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	ipcSocket              string
 	shouldConnectIpcService bool
 )
 
@@ -30,26 +31,6 @@ var configCommandFunctions = []func() mod.ConfigCommandOptions{
 	thisthat.ConfigCommandOptions,
 	inatobs.ConfigCommandOptions,
 	inatlookup.ConfigCommandOptions,
-}
-
-var configCmd = &cli.Command{
-	Name:        "config",
-	Usage:       "Configure a module",
-	Subcommands: []*cli.Command{},
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:        "ipc-socket",
-			Value:       "/tmp/buggins-ipc.sock",
-			Usage:       "IPC socket location",
-			Destination: &ipcSocket,
-		},
-		&cli.BoolFlag{
-			Name:        "connect-ipc",
-			Value:       true,
-			Usage:       "Attempt to use IPC to reload module configuration",
-			Destination: &shouldConnectIpcService,
-		},
-	},
 }
 
 func maybeSendReload(ctx context.Context, module string) {
@@ -88,7 +69,7 @@ func maybeSendReload(ctx context.Context, module string) {
 
 }
 
-func saveConfigurationOption(c mod.ConfigCommandOptions) error {
+func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
 	db, err := store.Init(databaseFile)
 
@@ -96,8 +77,8 @@ func saveConfigurationOption(c mod.ConfigCommandOptions) error {
 		return err
 	}
 
-	options := c.GetData()
-	key := c.GetKey()
+	options := c.GetData(m)
+	key := c.GetKey(m)
 
 	_, err = db.FindModuleConfiguration(
 		ctx,
@@ -131,7 +112,7 @@ func saveConfigurationOption(c mod.ConfigCommandOptions) error {
 	return nil
 }
 
-func updateConfigurationOption(c mod.ConfigCommandOptions) error {
+func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
 	db, err := store.Init(databaseFile)
 
@@ -139,7 +120,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 		return err
 	}
 
-	key := c.GetKey()
+	key := c.GetKey(m)
 
 	_, err = db.FindModuleConfiguration(
 		ctx,
@@ -155,7 +136,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 		return err
 	}
 
-	options := c.GetData()
+	options := c.GetData(m)
 	data, err := json.Marshal(options)
 
 	if err != nil {
@@ -178,7 +159,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions) error {
 	return nil
 }
 
-func removeConfigurationOption(c mod.ConfigCommandOptions) error {
+func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
 	db, err := store.Init(databaseFile)
 
@@ -186,7 +167,7 @@ func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 		return err
 	}
 
-	key := c.GetKey()
+	key := c.GetKey(m)
 
 	_, err = db.FindModuleConfiguration(
 		ctx,
@@ -217,73 +198,78 @@ func removeConfigurationOption(c mod.ConfigCommandOptions) error {
 }
 
 func init() {
+	configCmd := glap.NewCommand("config").
+		About("Configure a module").
+		Arg(glap.NewArg("ipc-socket").
+			Default("/tmp/buggins-ipc.sock").
+			Help("IPC socket location")).
+		Arg(glap.NewArg("connect-ipc").
+			Action(glap.SetTrue).
+			Default("true").
+			Help("Attempt to use IPC to reload module configuration")).
+		Run(func(m *glap.Matches) error {
+			if v, ok := m.GetString("ipc-socket"); ok {
+				ipcSocket = v
+			}
+			if v, ok := m.GetBool("connect-ipc"); ok {
+				shouldConnectIpcService = v
+			}
+			return nil
+		})
+
 	for _, f := range configCommandFunctions {
 		c := f()
 
-		modCmd := &cli.Command{
-			Name:        c.ModuleName,
-			Usage:       fmt.Sprintf("Configure module '%s'", c.ModuleName),
-			Subcommands: []*cli.Command{},
-		}
+		modCmd := glap.NewCommand(c.ModuleName).
+			About(fmt.Sprintf("Configure module '%s'", c.ModuleName))
 
-		addCmd := &cli.Command{
-			Name:  "add",
-			Usage: "Add a configuration",
-			Flags: []cli.Flag{},
-			Action: func(*cli.Context) error {
-				err := saveConfigurationOption(c)
-
+		addCmd := glap.NewCommand("add").
+			About("Add a configuration").
+			Run(func(m *glap.Matches) error {
+				err := saveConfigurationOption(c, m)
 				if err != nil {
-					logger.Error("error adding config", "key", c.GetKey(), "err", err)
+					logger.Error("error adding config", "key", c.GetKey(m), "err", err)
 					return err
 				}
-
 				logger.Info("Configuration added successfully!")
 				return nil
-			},
-		}
+			})
 
-		updateCmd := &cli.Command{
-			Name:  "update",
-			Usage: "Update a configuration",
-			Flags: []cli.Flag{},
-			Action: func(*cli.Context) error {
-				err := updateConfigurationOption(c)
-
+		updateCmd := glap.NewCommand("update").
+			About("Update a configuration").
+			Run(func(m *glap.Matches) error {
+				err := updateConfigurationOption(c, m)
 				if err != nil {
-					logger.Error("error updating config", "key", c.GetKey(), "err", err)
+					logger.Error("error updating config", "key", c.GetKey(m), "err", err)
 					return err
 				}
-
 				logger.Info("Configuration updated successfully!")
 				return nil
-			},
-		}
+			})
 
-		rmCmd := &cli.Command{
-			Name:  "rm",
-			Usage: "Remove a configuration",
-			Action: func(*cli.Context) error {
-				err := removeConfigurationOption(c)
-
+		rmCmd := glap.NewCommand("rm").
+			About("Remove a configuration").
+			Run(func(m *glap.Matches) error {
+				err := removeConfigurationOption(c, m)
 				if err != nil {
-					logger.Error("error removing config", "key", c.GetKey(), "err", err)
+					logger.Error("error removing config", "key", c.GetKey(m), "err", err)
 					return err
 				}
-
 				logger.Info("Configuration removed.")
 				return nil
-			},
+			})
+
+		for _, arg := range c.Args {
+			addCmd.Arg(arg.Clone())
+			updateCmd.Arg(arg.Clone())
+			if arg.GetName() == c.KeyArg {
+				rmCmd.Arg(arg.Clone())
+			}
 		}
 
-		for _, flag := range c.Flags {
-			addCmd.Flags = append(addCmd.Flags, flag)
-			updateCmd.Flags = append(updateCmd.Flags, flag)
-		}
-
-		modCmd.Subcommands = append(modCmd.Subcommands, addCmd, updateCmd, rmCmd)
-		configCmd.Subcommands = append(configCmd.Subcommands, modCmd)
+		modCmd.Subcommand(addCmd).Subcommand(updateCmd).Subcommand(rmCmd)
+		configCmd.Subcommand(modCmd)
 	}
 
-	app.Commands = append(app.Commands, configCmd)
+	RegisterCommand(configCmd)
 }

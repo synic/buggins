@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 
 	"github.com/synic/buggins/internal/store"
 )
 
 type ConfigCommandOptions struct {
-	Flags      []cli.Flag
-	GetData    func() any
+	Args       []*glap.Arg
+	GetData    func(m *glap.Matches) any
 	ModuleName string
-	KeyFlag    string
-	GetKey     func() string
+	KeyArg     string
+	GetKey     func(m *glap.Matches) string
 }
 
 func FetchModuleConfiguration[T any](

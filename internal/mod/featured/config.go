@@ -1,15 +1,9 @@
 package featured
 
 import (
-	"github.com/urfave/cli/v2"
+	"github.com/synic/glap"
 
 	"github.com/synic/buggins/internal/mod"
-)
-
-var (
-	guildID               string
-	channelID             string
-	requiredReactionCount int
 )
 
 type GuildConfig struct {
@@ -19,40 +13,28 @@ type GuildConfig struct {
 }
 
 func ConfigCommandOptions() mod.ConfigCommandOptions {
-	flags := []cli.Flag{
-		&cli.StringFlag{
-			Name:        "guild-id",
-			Usage:       "Guild `GUILD_ID`",
-			Aliases:     []string{"g"},
-			Destination: &guildID,
-			Required:    true,
-		},
-		&cli.StringFlag{
-			Name:        "channel-id",
-			Usage:       "Channel `CHANNEL_ID`",
-			Aliases:     []string{"c"},
-			Destination: &channelID,
-			Required:    true,
-		},
-		&cli.IntFlag{
-			Name:        "reaction-count",
-			Aliases:     []string{"r"},
-			Value:       6,
-			Usage:       "Number of reactions to trigger `COUNT`",
-			Destination: &requiredReactionCount,
-		},
+	args := []*glap.Arg{
+		glap.NewArg("guild-id").Short('g').Required(true).Help("Guild GUILD_ID"),
+		glap.NewArg("channel-id").Short('c').Required(true).Help("Channel CHANNEL_ID"),
+		glap.NewArg("reaction-count").Short('r').Default("6").Help("Number of reactions to trigger COUNT"),
 	}
 
 	return mod.ConfigCommandOptions{
-		Flags:      flags,
-		KeyFlag:    "guild-id",
+		Args:       args,
+		KeyArg:     "guild-id",
 		ModuleName: moduleName,
-		GetKey:     func() string { return guildID },
-		GetData: func() any {
+		GetKey: func(m *glap.Matches) string {
+			v, _ := m.GetString("guild-id")
+			return v
+		},
+		GetData: func(m *glap.Matches) any {
+			guildID, _ := m.GetString("guild-id")
+			channelID, _ := m.GetString("channel-id")
+			reactionCount, _ := m.GetInt("reaction-count")
 			return GuildConfig{
 				ID:                    guildID,
 				ChannelID:             channelID,
-				RequiredReactionCount: requiredReactionCount,
+				RequiredReactionCount: reactionCount,
 			}
 		},
 	}

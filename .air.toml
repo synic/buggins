@@ -4,7 +4,7 @@ tmp_dir = ".tmp"
 [build]
   args_bin = []
   bin = "./bin/bot-debug start --start-ipc"
-  cmd = "mage build:dev"
+  cmd = "go tool mage build:dev"
   delay = 500
   exclude_dir = ["logs", "bin"]
   exclude_file = ["Dockerfile", "mage_output_file.go"]
