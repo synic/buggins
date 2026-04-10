@@ -9,7 +9,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.37
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/synic/glap v0.0.8
+	github.com/synic/glap v0.0.9
 	go.uber.org/fx v1.24.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.11

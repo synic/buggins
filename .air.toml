@@ -2,8 +2,8 @@ root = "."
 tmp_dir = ".tmp"
 
 [build]
-  args_bin = []
-  bin = "./bin/bot-debug start --start-ipc"
+  args_bin = ["start", "--start-ipc"]
+  bin = "./bin/bot-debug"
   cmd = "go tool mage build:dev"
   delay = 500
   exclude_dir = ["logs", "bin"]

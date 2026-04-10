@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	ipcSocket              string
+	ipcSocket               string
 	shouldConnectIpcService bool
 )
 
@@ -197,9 +198,78 @@ func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 	return nil
 }
 
+func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
+	ctx := context.Background()
+	db, err := store.Init(databaseFile)
+
+	if err != nil {
+		return err
+	}
+
+	key := c.GetKey(m)
+
+	conf, err := db.FindModuleConfiguration(
+		ctx,
+		store.FindModuleConfigurationParams{Module: c.ModuleName, Key: key},
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("config %s not found", key)
+		}
+
+		logger.Error("error looking up configuration", "err", err)
+		return err
+	}
+
+	data, ok := conf.Data.([]byte)
+	if !ok {
+		return fmt.Errorf("unexpected data type for config %s", key)
+	}
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, data, "", "  "); err != nil {
+		return fmt.Errorf("error formatting configuration: %w", err)
+	}
+	fmt.Println(buf.String())
+	return nil
+}
+
+func showAllConfigurations(c mod.ConfigCommandOptions) error {
+	ctx := context.Background()
+	db, err := store.Init(databaseFile)
+
+	if err != nil {
+		return err
+	}
+
+	confs, err := db.FindModuleConfigurations(ctx, c.ModuleName)
+
+	if err != nil {
+		logger.Error("error looking up configuration", "err", err)
+		return err
+	}
+
+	for i, conf := range confs {
+		if i > 0 {
+			fmt.Println()
+		}
+		data, ok := conf.Data.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected data type for config %s", conf.Key)
+		}
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, data, "", "  "); err != nil {
+			return fmt.Errorf("error formatting configuration %s: %w", conf.Key, err)
+		}
+		fmt.Println(buf.String())
+	}
+	return nil
+}
+
 func init() {
 	configCmd := glap.NewCommand("config").
 		About("Configure a module").
+		SubcommandRequired(true).
 		Arg(glap.NewArg("ipc-socket").
 			Default("/tmp/buggins-ipc.sock").
 			Help("IPC socket location")).
@@ -221,7 +291,8 @@ func init() {
 		c := f()
 
 		modCmd := glap.NewCommand(c.ModuleName).
-			About(fmt.Sprintf("Configure module '%s'", c.ModuleName))
+			About(fmt.Sprintf("Configure module '%s'", c.ModuleName)).
+			SubcommandRequired(true)
 
 		addCmd := glap.NewCommand("add").
 			About("Add a configuration").
@@ -259,15 +330,44 @@ func init() {
 				return nil
 			})
 
+		showCmd := glap.NewCommand("show").
+			About("Show a configuration").
+			Run(func(m *glap.Matches) error {
+				err := showConfiguration(c, m)
+
+				if err != nil {
+					logger.Error("error showing config", "key", c.GetKey(m), "err", err)
+					return err
+				}
+				return nil
+			})
+
+		showAllCmd := glap.NewCommand("showall").
+			About("Show all configurations").
+			Run(func(m *glap.Matches) error {
+				err := showAllConfigurations(c)
+
+				if err != nil {
+					logger.Error("error showing config", "err", err)
+					return err
+				}
+				return nil
+			})
+
 		for _, arg := range c.Args {
 			addCmd.Arg(arg.Clone())
 			updateCmd.Arg(arg.Clone())
 			if arg.GetName() == c.KeyArg {
 				rmCmd.Arg(arg.Clone())
+				showCmd.Arg(arg.Clone())
 			}
 		}
 
-		modCmd.Subcommand(addCmd).Subcommand(updateCmd).Subcommand(rmCmd)
+		modCmd.Subcommand(addCmd).
+			Subcommand(updateCmd).
+			Subcommand(rmCmd).
+			Subcommand(showCmd).
+			Subcommand(showAllCmd)
 		configCmd.Subcommand(modCmd)
 	}
 

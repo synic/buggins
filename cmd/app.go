@@ -21,6 +21,7 @@ func RegisterCommand(cmd *glap.Command) {
 func Execute() {
 	app := glap.NewCommand("buggins").
 		About("Discord bot for the Macromania server").
+		SubcommandRequired(true).
 		Arg(glap.NewArg("database-file").
 			Default("db.sqlite").
 			Env("DATABASE_FILE").

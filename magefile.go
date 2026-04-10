@@ -23,20 +23,10 @@ var (
 	P = filepath.FromSlash
 
 	// commands
-	runCmd         = sh.RunCmd("go", "run")
 	buildCmd       = sh.RunCmd("go", "build")
 	airCmd         = sh.RunCmd("go", "tool", "github.com/air-verse/air")
-	gooseCmd       = sh.RunCmd("go", "tool", "github.com/pressly/goose/v3/cmd/goose")
-	sqlcCmd        = sh.RunCmd("go", "tool", "github.com/sqlc-dev/sqlc/cmd/sqlc")
 	staticCheckCmd = sh.RunCmd("go", "tool", "honnef.co/go/tools/cmd/staticcheck")
-	protoCCmd      = sh.RunCmd("go", "tool", "google.golang.org/protobuf/cmd/protoc-gen-go")
-	grpcCmd        = sh.RunCmd("go", "tool", "google.golang.org/protobuf/cmd/protoc-gen-go")
 )
-
-type tool struct {
-	path   string
-	global bool
-}
 
 func Dev() error {
 	return airCmd()
