@@ -1,13 +1,16 @@
 package featured
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 
@@ -20,14 +23,22 @@ var (
 )
 
 type Module struct {
-	db         *store.Queries
-	logger     *slog.Logger
-	config     []GuildConfig
-	configLock sync.RWMutex
+	httpClient   *http.Client
+	db           *store.Queries
+	logger       *slog.Logger
+	config       []GuildConfig
+	configLock   sync.RWMutex
+	handlersOnce sync.Once
 }
 
 func New(db *store.Queries, logger *slog.Logger) (*Module, error) {
-	return &Module{db: db, logger: logger}, nil
+	return &Module{
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		db:     db,
+		logger: logger,
+	}, nil
 }
 
 func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *store.Queries) error {
@@ -96,116 +107,134 @@ func (m *Module) guildConfig(guildID string) (GuildConfig, error) {
 	return GuildConfig{}, errors.New("guild not configured")
 }
 
+func (m *Module) Stop(ctx context.Context) error {
+	return nil
+}
+
 func (m *Module) registerHandlers(discord *discordgo.Session) {
-	discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
-		config, err := m.guildConfig(r.GuildID)
-
-		if err != nil {
-			return
-		}
-
-		msg, err := d.ChannelMessage(r.ChannelID, r.MessageID)
-
-		if err != nil {
-			m.logger.Info("error fetching message ID", "message", r.MessageID, "err", err)
-			return
-		}
-
-		reactionCount := starReactionCount(msg.Reactions)
-		imgCount := imageAttachmentCount(msg.Attachments)
-
-		if imgCount > 0 && reactionCount >= config.RequiredReactionCount {
-			isFeatured, err := m.db.FindIsMessageFeatured(
-				context.Background(),
-				store.FindIsMessageFeaturedParams{
-					ChannelID: r.ChannelID,
-					MessageID: r.MessageID,
-					GuildID:   r.GuildID,
-				},
-			)
+	m.handlersOnce.Do(func() {
+		discord.AddHandler(func(d *discordgo.Session, r *discordgo.MessageReactionAdd) {
+			config, err := m.guildConfig(r.GuildID)
 
 			if err != nil {
-				m.logger.Warn(
-					"couldn't determine if message is featured",
-					"channel",
-					r.ChannelID,
-					"message",
-					r.MessageID,
-					"err",
-					err,
-				)
 				return
 			}
 
-			if isFeatured > 0 {
-				m.logger.Warn(
-					"message is already featured, skipping",
-					"channel",
-					r.ChannelID,
-					"message",
-					r.MessageID,
-				)
-				return
-			}
-
-			_, err = m.db.SaveFeaturedMessage(
-				context.Background(),
-				store.SaveFeaturedMessageParams{
-					ChannelID: r.ChannelID,
-					MessageID: r.MessageID,
-					GuildID:   r.GuildID,
-				},
-			)
+			msg, err := d.ChannelMessage(r.ChannelID, r.MessageID)
 
 			if err != nil {
-				m.logger.Warn(
-					"couldn't save featured message to db",
-					"channel",
-					r.ChannelID,
-					"message",
-					r.MessageID,
-					"err",
-					err,
-				)
+				m.logger.Info("error fetching message ID", "message", r.MessageID, "err", err)
 				return
 			}
 
-			files := make([]*discordgo.File, 0, len(msg.Attachments))
+			reactionCount := starReactionCount(msg.Reactions)
+			imgCount := imageAttachmentCount(msg.Attachments)
 
-			for _, a := range msg.Attachments {
-				if !strings.Contains(a.ContentType, "image") {
-					continue
-				}
-
-				r, err := http.Get(a.URL)
+			if imgCount > 0 && reactionCount >= config.RequiredReactionCount {
+				isFeatured, err := m.db.FindIsMessageFeatured(
+					context.Background(),
+					store.FindIsMessageFeaturedParams{
+						ChannelID: r.ChannelID,
+						MessageID: r.MessageID,
+						GuildID:   r.GuildID,
+					},
+				)
 
 				if err != nil {
-					m.logger.Error("unable to retrieve data for photo", "url", a.URL, "err", err)
-					continue
+					m.logger.Warn(
+						"couldn't determine if message is featured",
+						"channel",
+						r.ChannelID,
+						"message",
+						r.MessageID,
+						"err",
+						err,
+					)
+					return
 				}
 
-				defer r.Body.Close()
-				files = append(files, &discordgo.File{
-					Name:        a.Filename,
-					ContentType: a.ContentType,
-					Reader:      r.Body,
-				})
+				if isFeatured > 0 {
+					m.logger.Warn(
+						"message is already featured, skipping",
+						"channel",
+						r.ChannelID,
+						"message",
+						r.MessageID,
+					)
+					return
+				}
+
+				_, err = m.db.SaveFeaturedMessage(
+					context.Background(),
+					store.SaveFeaturedMessageParams{
+						ChannelID: r.ChannelID,
+						MessageID: r.MessageID,
+						GuildID:   r.GuildID,
+					},
+				)
+
+				if err != nil {
+					m.logger.Warn(
+						"couldn't save featured message to db",
+						"channel",
+						r.ChannelID,
+						"message",
+						r.MessageID,
+						"err",
+						err,
+					)
+					return
+				}
+
+				files := make([]*discordgo.File, 0, len(msg.Attachments))
+
+				for _, a := range msg.Attachments {
+					if !strings.Contains(a.ContentType, "image") {
+						continue
+					}
+
+					r, err := m.httpClient.Get(a.URL)
+
+					if err != nil {
+						m.logger.Error("unable to retrieve data for photo", "url", a.URL, "err", err)
+						continue
+					}
+
+					if r.StatusCode != http.StatusOK {
+						r.Body.Close()
+						m.logger.Error("bad status retrieving photo", "url", a.URL, "status", r.StatusCode)
+						continue
+					}
+
+					data, err := io.ReadAll(r.Body)
+					r.Body.Close()
+					if err != nil {
+						m.logger.Error("unable to read data for photo", "url", a.URL, "err", err)
+						continue
+					}
+
+					files = append(files, &discordgo.File{
+						Name:        a.Filename,
+						ContentType: a.ContentType,
+						Reader:      bytes.NewReader(data),
+					})
+				}
+
+				discord.ChannelMessageSendComplex(
+					config.ChannelID,
+					&discordgo.MessageSend{
+						Content: fmt.Sprintf(
+							":partying_face: Congratulations, <@%s>, your [post](https://discord.com/channels/@me/%s/%s) made the Hall of Fame!",
+							msg.Author.ID,
+							r.ChannelID,
+							r.MessageID,
+						),
+						Files: files,
+					},
+				)
 			}
 
-			discord.ChannelMessageSendComplex(
-				config.ChannelID,
-				&discordgo.MessageSend{
-					Content: fmt.Sprintf(
-						":partying_face: Congratulations, <@%s>, your [post](https://discord.com/channels/@me/%s/%s) made the Hall of Fame!",
-						msg.Author.ID,
-						r.ChannelID,
-						r.MessageID,
-					),
-					Files: files,
-				},
-			)
-		}
-
+		})
 	})
 }
 

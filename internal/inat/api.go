@@ -8,19 +8,25 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Api struct {
+	client *http.Client
 }
 
 func New() Api {
-	return Api{}
+	return Api{
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
 }
 
 func (a Api) Search(sources []string, q string) (SearchResult, error) {
 	var sr SearchResult
 
-	res, err := http.Get(
+	res, err := a.client.Get(
 		fmt.Sprintf("https://api.inaturalist.org/v1/search?q=%s&sources=%s",
 			url.QueryEscape(q), strings.Join(sources, ",")),
 	)
@@ -57,7 +63,7 @@ func (a Api) FetchRecentProjectObservations(
 
 	for currentPage < pages {
 		log.Printf("Connecting to inat for page %d", currentPage)
-		res, err := http.Get(
+		res, err := a.client.Get(
 			fmt.Sprintf(
 				"https://inaturalist.org/observations/project/%d.json?order_by=id&order=desc&per_page=%d",
 				projectID,
@@ -69,11 +75,11 @@ func (a Api) FetchRecentProjectObservations(
 			return observations, fmt.Errorf("http error: %w", err)
 		}
 
-		defer res.Body.Close()
-		body, err := io.ReadAll(res.Body)
+		body, readErr := io.ReadAll(res.Body)
+		res.Body.Close()
 
-		if err != nil {
-			return observations, fmt.Errorf("error parsing body: %w", err)
+		if readErr != nil {
+			return observations, fmt.Errorf("error parsing body: %w", readErr)
 		}
 
 		var items []Observation

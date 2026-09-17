@@ -27,10 +27,11 @@ var (
 type commandHandler = func(*discordgo.Session, *discordgo.MessageCreate, string)
 
 type Module struct {
-	api        inat.Api
-	logger     *slog.Logger
-	config     []GuildConfig
-	configLock sync.RWMutex
+	api          inat.Api
+	logger       *slog.Logger
+	config       []GuildConfig
+	configLock   sync.RWMutex
+	handlersOnce sync.Once
 }
 
 func New(logger *slog.Logger) (*Module, error) {
@@ -116,52 +117,55 @@ func (m *Module) ReloadConfig(
 	return nil
 }
 
+func (m *Module) Stop(ctx context.Context) error {
+	return nil
+}
+
 func (m *Module) registerHandlers(discord *discordgo.Session) {
-	m.configLock.Lock()
-	defer m.configLock.Unlock()
-
-	handlers := map[string]commandHandler{
-		"t": m.lookupTaxa,
-	}
-
-	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
-		config, err := m.guildConfig(msg.GuildID)
-
-		if err != nil {
-			return
+	m.handlersOnce.Do(func() {
+		handlers := map[string]commandHandler{
+			"t": m.lookupTaxa,
 		}
 
-		if len(config.Channels) > 0 && !slices.Contains(config.Channels, msg.ChannelID) {
-			return
-		}
+		discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
+			config, err := m.guildConfig(msg.GuildID)
 
-		if config.CommandPrefixRegex == nil {
-			m.logger.Warn("guilddoes not have a valid command prefix", "guild", msg.GuildID)
-			return
-		}
-
-		matches := config.CommandPrefixRegex.FindStringSubmatch(msg.Content)
-
-		if matches != nil {
-			command := matches[1]
-			content := matches[2]
-
-			handler, ok := handlers[command]
-
-			if ok {
-				handler(d, msg, content)
+			if err != nil {
+				return
 			}
-		}
 
-		matches = inlineTaxaSearchRe.FindStringSubmatch(msg.Content)
-
-		if matches != nil {
-			handler, ok := handlers["t"]
-
-			if ok {
-				handler(d, msg, matches[1])
+			if len(config.Channels) > 0 && !slices.Contains(config.Channels, msg.ChannelID) {
+				return
 			}
-		}
+
+			if config.CommandPrefixRegex == nil {
+				m.logger.Warn("guilddoes not have a valid command prefix", "guild", msg.GuildID)
+				return
+			}
+
+			matches := config.CommandPrefixRegex.FindStringSubmatch(msg.Content)
+
+			if matches != nil {
+				command := matches[1]
+				content := matches[2]
+
+				handler, ok := handlers[command]
+
+				if ok {
+					handler(d, msg, content)
+				}
+			}
+
+			matches = inlineTaxaSearchRe.FindStringSubmatch(msg.Content)
+
+			if matches != nil {
+				handler, ok := handlers["t"]
+
+				if ok {
+					handler(d, msg, matches[1])
+				}
+			}
+		})
 	})
 }
 

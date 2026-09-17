@@ -12,6 +12,7 @@ import (
 
 type Module interface {
 	Start(context.Context, *discordgo.Session, *store.Queries) error
+	Stop(context.Context) error
 	ReloadConfig(context.Context, *discordgo.Session, *store.Queries) error
 	Name() string
 }

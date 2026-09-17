@@ -20,9 +20,10 @@ var (
 )
 
 type Module struct {
-	logger     *slog.Logger
-	config     []ChannelConfig
-	configLock sync.RWMutex
+	logger       *slog.Logger
+	config       []ChannelConfig
+	configLock   sync.RWMutex
+	handlersOnce sync.Once
 }
 
 func Provider(logger *slog.Logger) (mod.ModuleProviderResult, error) {
@@ -98,25 +99,34 @@ func (m *Module) Start(ctx context.Context, discord *discordgo.Session, db *stor
 	return nil
 }
 
+func (m *Module) Stop(ctx context.Context) error {
+	return nil
+}
+
 func (m *Module) registerHandlers(discord *discordgo.Session) {
-	discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
-		config, err := m.channelConfig(msg.ChannelID)
+	m.handlersOnce.Do(func() {
+		discord.AddHandler(func(d *discordgo.Session, msg *discordgo.MessageCreate) {
+			config, err := m.channelConfig(msg.ChannelID)
 
-		if err != nil {
-			return
-		}
-
-		if msg.ChannelID != config.ID || msg.Author.ID == discord.State.User.ID {
-			return
-		}
-
-		num := imageAttachmentCount(msg.Attachments)
-
-		if num > 1 {
-			for _, emoji := range emojis[:num] {
-				d.MessageReactionAdd(msg.ChannelID, msg.ID, emoji)
+			if err != nil {
+				return
 			}
-		}
+
+			if msg.ChannelID != config.ID || msg.Author.ID == discord.State.User.ID {
+				return
+			}
+
+			num := imageAttachmentCount(msg.Attachments)
+			if num > len(emojis) {
+				num = len(emojis)
+			}
+
+			if num > 1 {
+				for _, emoji := range emojis[:num] {
+					d.MessageReactionAdd(msg.ChannelID, msg.ID, emoji)
+				}
+			}
+		})
 	})
 }
 

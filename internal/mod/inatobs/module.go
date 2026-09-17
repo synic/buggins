@@ -1,15 +1,18 @@
 package inatobs
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"math/rand/v2"
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
@@ -25,6 +28,7 @@ var (
 
 type Module struct {
 	api                     inat.Api
+	httpClient              *http.Client
 	logger                  *slog.Logger
 	db                      *store.Queries
 	displayedObservers      map[string][]int64
@@ -34,11 +38,15 @@ type Module struct {
 	configLock              sync.RWMutex
 	cronsLock               sync.Mutex
 	displayedObserversLock  sync.RWMutex
+	handlersOnce            sync.Once
 }
 
 func New(db *store.Queries, logger *slog.Logger) (*Module, error) {
 	return &Module{
-		api:                inat.New(),
+		api: inat.New(),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 		db:                 db,
 		logger:             logger,
 		displayedObservers: make(map[string][]int64),
@@ -128,39 +136,51 @@ func (m *Module) channelOptions(channelID string) (ChannelConfig, error) {
 	return ChannelConfig{}, errors.New("channel config not found")
 }
 
-func (m *Module) registerHandlers(discord *discordgo.Session) {
-	if discord.DataReady {
-		m.registerSlashCommands(discord)
-	} else {
-		discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
-			m.logger.Info(" -> discord connection detected, registering slash commands for inatobs")
-			m.registerSlashCommands(discord)
-		})
+func (m *Module) Stop(ctx context.Context) error {
+	m.cronsLock.Lock()
+	defer m.cronsLock.Unlock()
+	for _, c := range m.crons {
+		c.Stop()
 	}
+	m.crons = nil
+	return nil
+}
 
-	discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
-		_, err := m.channelOptions(i.ChannelID)
-
-		if err != nil {
-			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "Wrong channel, bub.",
-				},
+func (m *Module) registerHandlers(discord *discordgo.Session) {
+	m.handlersOnce.Do(func() {
+		if discord.DataReady {
+			m.registerSlashCommands(discord)
+		} else {
+			discord.AddHandlerOnce(func(d *discordgo.Session, r *discordgo.Ready) {
+				m.logger.Info(" -> discord connection detected, registering slash commands for inatobs")
+				m.registerSlashCommands(discord)
 			})
 		}
 
-		if i.ApplicationCommandData().Name == "loadinat" {
-			m.logger.Info("/loadinat called, loading observation to display")
-			go m.Post(discord, i.ChannelID)
+		discord.AddHandler(func(d *discordgo.Session, i *discordgo.InteractionCreate) {
+			_, err := m.channelOptions(i.ChannelID)
 
-			d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "Done, observation is loading and will be posted soon!",
-				},
-			})
-		}
+			if err != nil {
+				d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Wrong channel, bub.",
+					},
+				})
+			}
+
+			if i.ApplicationCommandData().Name == "loadinat" {
+				m.logger.Info("/loadinat called, loading observation to display")
+				go m.Post(discord, i.ChannelID)
+
+				d.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Done, observation is loading and will be posted soon!",
+					},
+				})
+			}
+		})
 	})
 }
 
@@ -260,7 +280,7 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 	files := make([]*discordgo.File, 0, len(photos))
 
 	for _, photo := range photos {
-		res, err := http.Get(photo.MediumURL)
+		res, err := m.httpClient.Get(photo.MediumURL)
 
 		if err != nil {
 			m.logger.Error(
@@ -273,11 +293,23 @@ func (m *Module) Post(discord *discordgo.Session, channelID string) {
 			continue
 		}
 
-		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			res.Body.Close()
+			m.logger.Error("bad status retrieving photo", "photo", photo.MediumURL, "status", res.StatusCode)
+			continue
+		}
+
+		data, err := io.ReadAll(res.Body)
+		res.Body.Close()
+		if err != nil {
+			m.logger.Error("unable to read photo data", "photo", photo.MediumURL, "err", err)
+			continue
+		}
+
 		files = append(files, &discordgo.File{
 			Name:        photo.MediumURL,
 			ContentType: "image/jpeg",
-			Reader:      res.Body,
+			Reader:      bytes.NewReader(data),
 		})
 	}
 

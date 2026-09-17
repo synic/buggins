@@ -61,11 +61,13 @@ func newDiscordSession(
 			OnStart: func(ctx context.Context) error {
 				discord.AddHandler(func(d *discordgo.Session, r *discordgo.Ready) {
 					logger.Info("User connected to discord!", "user", r.User.Username)
-
-					for _, module := range params.Manager.Modules() {
-						module.Start(ctx, discord, params.DB)
-					}
 				})
+
+				for _, module := range params.Manager.Modules() {
+					if err := module.Start(ctx, discord, params.DB); err != nil {
+						return fmt.Errorf("failed to start module %s: %w", module.Name(), err)
+					}
+				}
 
 				if err := discord.Open(); err != nil {
 					return err
@@ -76,6 +78,13 @@ func newDiscordSession(
 				return nil
 			},
 			OnStop: func(ctx context.Context) error {
+				logger.Info("stopping modules...")
+				for _, module := range params.Manager.Modules() {
+					if err := module.Stop(ctx); err != nil {
+						logger.Error("error stopping module", "module", module.Name(), "err", err)
+					}
+				}
+
 				logger.Info("closing discord connection...")
 				if err := discord.Close(); err != nil {
 					return err
