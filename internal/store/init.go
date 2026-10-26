@@ -2,13 +2,12 @@ package store
 
 import (
 	"context"
-	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Init() (*Queries, error) {
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+func Init(dsn string) (*Queries, error) {
+	pool, err := pgxpool.New(context.Background(), dsn)
 
 	if err != nil {
 		return nil, err
@@ -25,8 +24,8 @@ func Init() (*Queries, error) {
 	return db, nil
 }
 
-func Migrate() error {
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+func Migrate(dsn string) error {
+	pool, err := pgxpool.New(context.Background(), dsn)
 
 	if err != nil {
 		return err

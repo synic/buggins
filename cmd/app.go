@@ -9,7 +9,10 @@ import (
 	"github.com/synic/glap"
 )
 
-var subcommands []*glap.Command
+var (
+	databaseUrl string
+	subcommands []*glap.Command
+)
 
 func RegisterCommand(cmd *glap.Command) {
 	subcommands = append(subcommands, cmd)
@@ -18,7 +21,16 @@ func RegisterCommand(cmd *glap.Command) {
 func Execute() {
 	app := glap.NewCommand("buggins").
 		About("Discord bot for the Macromania server").
-		SubcommandRequired(true)
+		SubcommandRequired(true).
+		Arg(glap.NewArg("database-url").
+			Env("DATABASE_URL").
+			Help("PostgreSQL connection string")).
+		Run(func(m *glap.Matches) error {
+			if v, ok := m.GetString("database-url"); ok {
+				databaseUrl = v
+			}
+			return nil
+		})
 
 	for _, cmd := range subcommands {
 		app.Subcommand(cmd)

@@ -72,7 +72,7 @@ func maybeSendReload(ctx context.Context, module string) {
 
 func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init()
+	db, err := store.Init(databaseUrl)
 
 	if err != nil {
 		return err
@@ -115,7 +115,7 @@ func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error 
 
 func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init()
+	db, err := store.Init(databaseUrl)
 
 	if err != nil {
 		return err
@@ -162,7 +162,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 
 func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init()
+	db, err := store.Init(databaseUrl)
 
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 
 func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init()
+	db, err := store.Init(databaseUrl)
 
 	if err != nil {
 		return err
@@ -232,7 +232,7 @@ func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 
 func showAllConfigurations(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
-	db, err := store.Init()
+	db, err := store.Init(databaseUrl)
 
 	if err != nil {
 		return err
