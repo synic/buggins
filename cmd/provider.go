@@ -23,10 +23,10 @@ var (
 	logger = slog.Default()
 )
 
-func providers(databaseFile string) fx.Option {
+func providers() fx.Option {
 	return fx.Options(
 		fx.Provide(newLogger),
-		fx.Provide(newDatabase(databaseFile)),
+		fx.Provide(store.Init),
 		fx.Provide(featured.Provider),
 		fx.Provide(inatobs.Provider),
 		fx.Provide(inatlookup.Provider),
@@ -98,11 +98,6 @@ func newDiscordSession(
 	}
 }
 
-func newDatabase(fileLocation string) func() (*store.Queries, error) {
-	return func() (*store.Queries, error) {
-		return store.Init(fileLocation)
-	}
-}
 
 type ipcServiceParams struct {
 	fx.In

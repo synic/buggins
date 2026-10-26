@@ -39,7 +39,7 @@ func (Build) Dev() error {
 }
 
 func (Build) Release() error {
-	env := map[string]string{"CGO_ENABLED": "1"}
+	env := map[string]string{"CGO_ENABLED": "0"}
 	return sh.RunWithV(
 		env,
 		"go",
@@ -48,7 +48,7 @@ func (Build) Release() error {
 		"-tags",
 		"release",
 		"-ldflags",
-		"-s -w -linkmode external -extldflags \"-static\"",
+		"-s -w",
 		"-o",
 		releasePath,
 		".",
@@ -98,8 +98,8 @@ func Clean() error {
 func migrationEnv() map[string]string {
 	return map[string]string{
 		"GOOSE_MIGRATION_DIR": P("internal/store/migrations"),
-		"GOOSE_DRIVER":        "sqlite3",
-		"GOOSE_DBSTRING":      "db.sqlite",
+		"GOOSE_DRIVER":        "postgres",
+		"GOOSE_DBSTRING":      os.Getenv("DATABASE_URL"),
 	}
 }
 

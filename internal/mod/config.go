@@ -34,17 +34,7 @@ func FetchModuleConfiguration[T any](
 	for _, row := range rows {
 		var config T
 
-		data, ok := row.Data.([]byte)
-
-		if !ok {
-			return configs, fmt.Errorf(
-				"could not parse '%s' configuration item '%s'",
-				module,
-				row.Key,
-			)
-		}
-
-		err := json.Unmarshal(data, &config)
+		err := json.Unmarshal(row.Data, &config)
 
 		if err != nil {
 			return configs, fmt.Errorf(

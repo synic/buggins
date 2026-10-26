@@ -153,7 +153,7 @@ func (m *Module) registerHandlers(discord *discordgo.Session) {
 					return
 				}
 
-				if isFeatured > 0 {
+				if isFeatured {
 					m.logger.Warn(
 						"message is already featured, skipping",
 						"channel",

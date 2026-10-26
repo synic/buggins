@@ -9,10 +9,7 @@ import (
 	"github.com/synic/glap"
 )
 
-var (
-	databaseFile = "db.sqlite"
-	subcommands  []*glap.Command
-)
+var subcommands []*glap.Command
 
 func RegisterCommand(cmd *glap.Command) {
 	subcommands = append(subcommands, cmd)
@@ -21,17 +18,7 @@ func RegisterCommand(cmd *glap.Command) {
 func Execute() {
 	app := glap.NewCommand("buggins").
 		About("Discord bot for the Macromania server").
-		SubcommandRequired(true).
-		Arg(glap.NewArg("database-file").
-			Default("db.sqlite").
-			Env("DATABASE_FILE").
-			Help("Database file")).
-		Run(func(m *glap.Matches) error {
-			if v, ok := m.GetString("database-file"); ok {
-				databaseFile = v
-			}
-			return nil
-		})
+		SubcommandRequired(true)
 
 	for _, cmd := range subcommands {
 		app.Subcommand(cmd)

@@ -1,10 +1,11 @@
 package store
 
 import (
-	"database/sql"
 	"embed"
 	"log"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
@@ -12,20 +13,17 @@ import (
 var EmbeddedMigrations embed.FS
 var runMigrations = false
 
-func MaybeRunMigrations(dialect string, db *sql.DB) {
-	if !runMigrations {
-		return
-	}
-
+func RunMigrations(pool *pgxpool.Pool) error {
 	log.Println("Running embedded migrations")
+
+	db := stdlib.OpenDBFromPool(pool)
+	defer db.Close()
 
 	goose.SetBaseFS(EmbeddedMigrations)
 
-	if err := goose.SetDialect(dialect); err != nil {
-		panic(err)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
 	}
 
-	if err := goose.Up(db, "migrations"); err != nil {
-		panic(err)
-	}
+	return goose.Up(db, "migrations")
 }

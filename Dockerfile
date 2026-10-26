@@ -4,9 +4,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN set -x \
-    && apk add --no-cache build-base \
-    && go tool github.com/magefile/mage build:release
+RUN go tool github.com/magefile/mage build:release
 
 FROM gcr.io/distroless/static-debian13
 

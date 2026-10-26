@@ -31,7 +31,7 @@ func init() {
 
 			ipcService := provideIpcService(bind)
 			fx.New(
-				providers(databaseFile),
+				providers(),
 				fx.Provide(newDiscordSession(discordToken)),
 				fx.Invoke(func(*discordgo.Session) {}),
 				ipcService,

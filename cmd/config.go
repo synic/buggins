@@ -3,12 +3,12 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/synic/glap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -72,7 +72,7 @@ func maybeSendReload(ctx context.Context, module string) {
 
 func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init(databaseFile)
+	db, err := store.Init()
 
 	if err != nil {
 		return err
@@ -88,7 +88,7 @@ func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error 
 
 	if err == nil {
 		return fmt.Errorf("config %s already exists", key)
-	} else if !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("error fetching existing configuration: %v", err)
 	}
 
@@ -115,7 +115,7 @@ func saveConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error 
 
 func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init(databaseFile)
+	db, err := store.Init()
 
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 	)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("config %s not found", key)
 		}
 
@@ -162,7 +162,7 @@ func updateConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 
 func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init(databaseFile)
+	db, err := store.Init()
 
 	if err != nil {
 		return err
@@ -176,7 +176,7 @@ func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 	)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("config %s not found", key)
 		}
 
@@ -200,7 +200,7 @@ func removeConfigurationOption(c mod.ConfigCommandOptions, m *glap.Matches) erro
 
 func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	ctx := context.Background()
-	db, err := store.Init(databaseFile)
+	db, err := store.Init()
 
 	if err != nil {
 		return err
@@ -214,7 +214,7 @@ func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 	)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("config %s not found", key)
 		}
 
@@ -222,12 +222,8 @@ func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 		return err
 	}
 
-	data, ok := conf.Data.([]byte)
-	if !ok {
-		return fmt.Errorf("unexpected data type for config %s", key)
-	}
 	var buf bytes.Buffer
-	if err := json.Indent(&buf, data, "", "  "); err != nil {
+	if err := json.Indent(&buf, conf.Data, "", "  "); err != nil {
 		return fmt.Errorf("error formatting configuration: %w", err)
 	}
 	fmt.Println(buf.String())
@@ -236,7 +232,7 @@ func showConfiguration(c mod.ConfigCommandOptions, m *glap.Matches) error {
 
 func showAllConfigurations(c mod.ConfigCommandOptions) error {
 	ctx := context.Background()
-	db, err := store.Init(databaseFile)
+	db, err := store.Init()
 
 	if err != nil {
 		return err
@@ -253,12 +249,8 @@ func showAllConfigurations(c mod.ConfigCommandOptions) error {
 		if i > 0 {
 			fmt.Println()
 		}
-		data, ok := conf.Data.([]byte)
-		if !ok {
-			return fmt.Errorf("unexpected data type for config %s", conf.Key)
-		}
 		var buf bytes.Buffer
-		if err := json.Indent(&buf, data, "", "  "); err != nil {
+		if err := json.Indent(&buf, conf.Data, "", "  "); err != nil {
 			return fmt.Errorf("error formatting configuration %s: %w", conf.Key, err)
 		}
 		fmt.Println(buf.String())
