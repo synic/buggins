@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/bwmarrin/discordgo"
 	"github.com/synic/glap"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 )
 
 func init() {
@@ -31,6 +34,9 @@ func init() {
 
 			ipcService := provideIpcService(bind)
 			fx.New(
+				fx.WithLogger(func() fxevent.Logger {
+					return &fxevent.ConsoleLogger{W: os.Stdout}
+				}),
 				providers(databaseUrl),
 				fx.Provide(newDiscordSession(discordToken)),
 				fx.Invoke(func(*discordgo.Session) {}),
