@@ -24,12 +24,11 @@ var (
 
 	// commands
 	buildCmd       = sh.RunCmd("go", "build")
-	airCmd         = sh.RunCmd("go", "tool", "github.com/air-verse/air")
 	staticCheckCmd = sh.RunCmd("go", "tool", "honnef.co/go/tools/cmd/staticcheck")
 )
 
 func Dev() error {
-	return airCmd()
+	return sh.RunV("go", "tool", "air")
 }
 
 type Build mg.Namespace
