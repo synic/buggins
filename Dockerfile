@@ -1,7 +1,6 @@
-FROM golang:1.27.3-alpine AS build-base
+FROM golang:1.27.3-trixie AS build-base
 
 WORKDIR /app
-
 COPY . .
 
 RUN go tool github.com/magefile/mage build:release
